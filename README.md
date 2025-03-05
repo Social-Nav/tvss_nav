@@ -1,5 +1,31 @@
 # Task-Oriented Visual-Semantic Social Navigation
 
+## 2025-03-05 Update
+
+### Steps to run grounded sam 2 segmentation
+1. Run the Unity World
+
+2. Run the teleoporation node and rosbridge (rosbridge is for topic communication between ros and python script using conda env)
+    ```bash
+    cd tvss_nav/third_party/tmux/sean_teleop
+    tmuxinator
+    ```
+
+3. Run grounded sam2 in ros
+
+    ```bash
+    conda create -n gsam2 python=3.11
+    conda activate gsam2
+    # Follow the instructions on https://github.com/IDEA-Research/Grounded-SAM-2/blob/main/INSTALL.md to install the dependencies
+    cd tvss_nav/scripts/tvss_nav/tools/grounded_sam2
+    python grounded_sam2_ros.py
+    ```
+
+
+
+
+
+
 ## Nodes
 
 1. subgoal sampler
