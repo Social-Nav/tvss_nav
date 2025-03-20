@@ -95,13 +95,13 @@ def visualize_detections(frame_resized, out_obj_ids, out_mask_logits, id_to_obje
     """
     Creates a visualization overlay of detections on the given frame.
     """
-    all_mask = np.zeros((frame_resized.shape[0], frame_resized.shape[1], 1), dtype=np.uint8)
+    all_mask = np.zeros((frame_resized.shape[0], frame_resized.shape[1], 1), dtype=np.uint8)    # HxWx1
     for i in range(len(out_obj_ids)):
         out_mask = (out_mask_logits[i] > 0.0).permute(1, 2, 0).cpu().numpy().astype(np.uint8) * 255
-        all_mask = cv2.bitwise_or(all_mask, out_mask)
+        all_mask = cv2.bitwise_or(all_mask, out_mask)   
     all_mask = cv2.cvtColor(all_mask, cv2.COLOR_GRAY2BGR)
     overlay = cv2.addWeighted(frame_resized, 1, all_mask, 0.5, 0)
-    masks = np.stack([(out_mask_logits[i] > 0.0).cpu().numpy() for i in range(len(out_obj_ids))], axis=0)
+    masks = np.stack([(out_mask_logits[i] > 0.0).cpu().numpy() for i in range(len(out_obj_ids))], axis=0)   # NxHxW
     masks = masks.squeeze(1)
     detections = sv.Detections(
         xyxy=sv.mask_to_xyxy(masks),
@@ -111,7 +111,7 @@ def visualize_detections(frame_resized, out_obj_ids, out_mask_logits, id_to_obje
     box_annotator = sv.BoxAnnotator()
     overlay = box_annotator.annotate(scene=overlay.copy(), detections=detections)
     label_annotator = sv.LabelAnnotator()
-    overlay = label_annotator.annotate(overlay, detections=detections, labels=[id_to_objects[i] for i in out_obj_ids])
+    overlay = label_annotator.annotate(overlay, detections=detections, labels=[f"{obj_id}: {id_to_objects[obj_id]}" for obj_id in out_obj_ids])
     mask_annotator = sv.MaskAnnotator()
     overlay = mask_annotator.annotate(scene=overlay, detections=detections)
     return overlay
@@ -183,11 +183,11 @@ def main():
     # ROSBridge Setup
     #####################
     ros = setup_ros_bridge()
-    
     msg_type = 'sensor_msgs/CompressedImage' if IMAGE_MSG_TYPE=="CompressedImage" else 'sensor_msgs/Image'
     subscriber = create_subscriber(ros, INPUT_IMAGE_TOPIC, msg_type, image_callback)
     
     publisher_compressed = create_publisher(ros, OUTPUT_IMAGE_TOPIC + '/compressed', 'sensor_msgs/CompressedImage')
+    publisher_mask = create_publisher(ros, OUTPUT_IMAGE_TOPIC + '/mask', 'sensor_msgs/Image')
     if DEBUG_MODE:
         print(f"Created publisher for topic: {OUTPUT_IMAGE_TOPIC}/compressed")
 
@@ -209,6 +209,9 @@ def main():
     id_to_objects = None
     rate = 0.1
     
+    import gc
+
+    last_infer_times = time.time()
     try:
         while True:
             # Check if we need to reinitialize detection with new text prompt
@@ -217,9 +220,32 @@ def main():
                     if global_frame is None:
                         continue
                     frame = global_frame.copy()
+
+                if 'predictor' in locals():
+                    del predictor
+                    torch.cuda.empty_cache()
+                    gc.collect()
+
                 predictor, id_to_objects = perform_initial_detection(
                     frame, text_prompt, MODEL_CFG, SAM2_CHECKPOINT, MODEL_ID, WIDTH, HEIGHT)
+
+                # now = time.time()
+                # if now - last_infer_times > 20:
+                #     print("Inference restarted.")
+                #     last_infer_times = now
+                #     restart_inference = True
+
                 restart_inference = False
+
+            # # Check if we need to reinitialize detection with new text prompt
+            # if restart_inference and text_prompt:
+            #     with frame_lock:
+            #         if global_frame is None:
+            #             continue
+            #         frame = global_frame.copy()
+            #     predictor, id_to_objects = perform_initial_detection(
+            #         frame, text_prompt, MODEL_CFG, SAM2_CHECKPOINT, MODEL_ID, WIDTH, HEIGHT)
+            #     restart_inference = False
                 
             # If predictor isn't initialized yet, wait for text prompt
             if predictor is None:
@@ -234,12 +260,13 @@ def main():
             
             out_obj_ids, out_mask_logits, frame_resized = track_frame(predictor, frame, WIDTH, HEIGHT)
             overlay = visualize_detections(frame_resized, out_obj_ids, out_mask_logits, id_to_objects)
+            publish_mask(publisher_mask, frame_resized, out_obj_ids, out_mask_logits)
             cv2.imshow("Segmented Frame", overlay)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 print("Exiting main")
                 break
             
-            # Publish processed image if enabled
+            # Publish processed image if enabledinstance_id
             if ENABLE_IMAGE_PUBLISH:
                 try:
                     compressed_msg = create_compressed_image_message(overlay)
@@ -256,6 +283,44 @@ def main():
         # Cleanup
         cv2.destroyAllWindows()
         ros.terminate()
+
+def publish_mask(mask_publisher, frame_resized, out_obj_ids, out_mask_logits):
+    """ 
+    Publish a Mask image with instance IDs.
+
+    - The “mask“ values are no longer 0/255, but instead instance_id itself.
+    - Uses PNG compression to reduce bandwidth. 
+    """
+    all_mask = np.zeros((frame_resized.shape[0], frame_resized.shape[1]), dtype=np.uint8)  # HxW
+
+    for i, obj_id in enumerate(out_obj_ids):
+        out_mask = (out_mask_logits[i] > 0.0).permute(1, 2, 0).cpu().numpy().astype(np.uint8)
+
+        if out_mask.ndim == 3 and out_mask.shape[-1] == 1:
+            out_mask = out_mask[..., 0]
+        elif out_mask.ndim == 3:
+            raise ValueError(f"Expected out_mask to have shape (H, W, 1) or (H, W), but got {out_mask.shape}")
+
+        all_mask[out_mask > 0] = obj_id
+
+    _, encoded_mask = cv2.imencode('.png', all_mask)
+    mask_data = encoded_mask.tobytes()
+
+    msg = roslibpy.Message({
+        'header': {
+            'stamp': {'secs': int(time.time()), 'nsecs': 0},
+            'frame_id': 'center_depth_optical_frame'
+        },
+        'height': all_mask.shape[0],
+        'width': all_mask.shape[1],
+        'encoding': 'mono8',
+        'is_bigendian': 0,
+        'step': all_mask.shape[1],
+        'data': list(mask_data)
+    })
+
+    mask_publisher.publish(msg)
+    
 
 if __name__ == "__main__":
     try:

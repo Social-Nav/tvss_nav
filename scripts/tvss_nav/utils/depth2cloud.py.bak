@@ -1,0 +1,68 @@
+import rospy
+import numpy as np
+import cv2
+from sensor_msgs.msg import Image, CameraInfo, PointCloud2, PointField
+import sensor_msgs.point_cloud2 as pc2
+from cv_bridge import CvBridge
+
+bridge = CvBridge()
+camera_matrix = None  # 相机内参矩阵
+depth_pub = rospy.Publisher("/depth_cloud", PointCloud2, queue_size=1)
+
+def camera_info_callback(msg):
+    """ 订阅相机内参 """
+    global camera_matrix
+    camera_matrix = np.array(msg.K).reshape(3, 3)
+
+def depth_callback(msg):
+    """ 订阅深度图并转换为 `PointCloud2` """
+    global camera_matrix
+    if camera_matrix is None:
+        rospy.logwarn("等待相机内参...")
+        return
+
+    # 解析深度图
+    depth_image = bridge.imgmsg_to_cv2(msg, desired_encoding="32FC1")
+    height, width = depth_image.shape
+
+    # 解析相机参数
+    fx, fy = camera_matrix[0, 0], camera_matrix[1, 1]  # 焦距
+    cx, cy = camera_matrix[0, 2], camera_matrix[1, 2]  # 光心
+
+    # 生成像素坐标网格
+    u, v = np.meshgrid(np.arange(width), np.arange(height))
+
+    # 计算 3D 位置
+    Z = depth_image  # 深度值 (m)
+    X = (u - cx) * Z / fx
+    Y = (v - cy) * Z / fy
+
+    # 过滤无效点（深度值 0 或 NaN）
+    valid = (Z > 0) & (Z < np.inf)  # 设定最大深度范围
+    points = np.stack((X[valid], Y[valid], Z[valid]), axis=-1)
+
+    # 创建 `PointCloud2` 消息
+    header = rospy.Header()
+    header.stamp = rospy.Time.now()
+    header.frame_id = "center_depth_optical_frame"  # 你的相机坐标系
+
+    fields = [
+        PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
+        PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
+        PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
+    ]
+
+    cloud_msg = pc2.create_cloud(header, fields, points)
+    
+    # 发布点云
+    depth_pub.publish(cloud_msg)
+
+
+if __name__ == "__main__":
+    rospy.init_node("depth_to_pointcloud")
+
+    # 订阅相机信息和深度图
+    rospy.Subscriber("/masked_depth_image/camera_info", CameraInfo, camera_info_callback)
+    rospy.Subscriber("/masked_depth_image/image_raw", Image, depth_callback)
+
+    rospy.spin()
