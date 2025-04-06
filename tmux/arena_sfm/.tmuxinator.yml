@@ -1,0 +1,22 @@
+name: sfm-arena
+root: .
+
+windows:
+  - sfm:
+      layout: tiled
+      panes:
+        - shell:
+        - core:
+          - roscore
+        - arena:
+          - roslaunch --wait tvss_nav start_arena_sfm.launch
+        - dynamic_reconf:
+          - |
+            # Wait for the arena launch to complete initialization
+            while ! rostopic list | grep -q "/jackal/move_base_flex/SFMControllerROS/parameter_descriptions"; do
+              echo "Waiting for /jackal/move_base_flex/SFMControllerROS/parameter_descriptions to become available before starting rqt_reconfigure..."
+              sleep 1
+            done
+
+            # Start dynamic reconfigure
+            rosrun rqt_reconfigure rqt_reconfigure
