@@ -26,7 +26,7 @@ SFMControllerROS:
   goal_tolerance:     0.2
   yaw_tolerance:      0.3
   local_goal_dist:    1.1
-  robot_radius:       0.35
+  robot_radius:       0.33
   people_radius:      0.35
   
   #sensor interface params

@@ -61,7 +61,7 @@
   <arg name="reset_remove_all" default="true" />
   <param name="reset_remove_all" value="$(arg reset_remove_all)" />
 
-  <arg name="map_file" default="arena_nus_com1_building" doc="[map1, floor, indoor, indoor_map1, map_small, map_empty]" />
+  <arg name="map_file" default="hospital" doc="[map1, floor, indoor, indoor_map1, map_small, map_empty]" />
   <arg name="map_path" default="$(find arena_simulation_setup)/worlds/$(arg map_file)/map/map.yaml" />
 
   <arg name="world_file" default="$(arg map_file)" doc="set to generated_world to replace occupancy map with obstacles and walls (NOT IMPLEMENTED YET)"/>
@@ -161,4 +161,6 @@
 
   <node pkg="topic_tools" type="relay" name="topic_relay" args="/dynamic_obstacles /$(arg model)/dynamic_obstacles" />
 
+  <node pkg="tf2_ros" type="static_transform_publisher" name="map_to_odom_broadcaster" 
+      args="0 0 0 0 0 0 map base_link" />
 </launch>
