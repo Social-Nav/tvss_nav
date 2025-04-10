@@ -135,9 +135,11 @@ def main():
     #####################
     # Configurable Parameters
     #####################
-    INPUT_IMAGE_TOPIC = '/robot_firstperson_rgb/compressed'
+    # INPUT_IMAGE_TOPIC = '/robot_firstperson_rgb/compressed'
+    INPUT_IMAGE_TOPIC = '/camera/color/image_raw'
     OUTPUT_IMAGE_TOPIC = '/segmented_image'
-    IMAGE_MSG_TYPE = "CompressedImage"  # "CompressedImage" or "Image"
+    # IMAGE_MSG_TYPE = "CompressedImage"  # "CompressedImage" or "Image"
+    IMAGE_MSG_TYPE = "Image"
     ENABLE_IMAGE_PUBLISH = True
     DEBUG_MODE = False
     HEIGHT = 480
@@ -152,16 +154,18 @@ def main():
     # State variables (now local to main)
     #####################
     global_frame = None
-    last_image_time = None
+    last_image_time = []
+    global_msg = None
     frame_lock = Lock()
     text_prompt = None
     restart_inference = False
+    global_frame_link = None
 
     #####################
     # Image callback with closure
     #####################
     def image_callback(message):
-        nonlocal global_frame, last_image_time
+        nonlocal global_frame, last_image_time, global_msg, global_frame_link
         with frame_lock:
             if IMAGE_MSG_TYPE == "CompressedImage":
                 global_frame = decode_compressed_image(message)
@@ -169,7 +173,10 @@ def main():
                 global_frame = decode_image(message, HEIGHT, WIDTH)
             else:
                 print("Unsupported IMAGE_MSG_TYPE:", IMAGE_MSG_TYPE)
-            last_image_time = time.time()
+            last_image_time = [message["header"]["stamp"]['secs'], message["header"]["stamp"]['nsecs']]
+            global_msg = message
+            global_frame_link = message["header"]["frame_id"]
+            # print("last_image_time: ", message["header"]["stamp"]['secs'] + message["header"]["stamp"]['nsecs'] * 1e-9)
 
     #####################
     # Handle text input
@@ -225,7 +232,6 @@ def main():
                     del predictor
                     torch.cuda.empty_cache()
                     gc.collect()
-
                 predictor, id_to_objects = perform_initial_detection(
                     frame, text_prompt, MODEL_CFG, SAM2_CHECKPOINT, MODEL_ID, WIDTH, HEIGHT)
 
@@ -256,11 +262,18 @@ def main():
             with frame_lock:
                 if global_frame is None:
                     continue
-                frame = global_frame.copy()
+                if IMAGE_MSG_TYPE == "CompressedImage":
+                    frame = decode_compressed_image(global_msg)
+                elif IMAGE_MSG_TYPE == "Image":
+                    frame = decode_image(global_msg, HEIGHT, WIDTH)
+                else:
+                    print("Unsupported IMAGE_MSG_TYPE:", IMAGE_MSG_TYPE)
+                frame_time = [global_msg["header"]["stamp"]['secs'], global_msg["header"]["stamp"]['nsecs']]
+                # print("last_image_time: ", global_msg["header"]["stamp"]['secs'] + global_msg["header"]["stamp"]['nsecs'] * 1e-9)
             
             out_obj_ids, out_mask_logits, frame_resized = track_frame(predictor, frame, WIDTH, HEIGHT)
             overlay = visualize_detections(frame_resized, out_obj_ids, out_mask_logits, id_to_objects)
-            publish_mask(publisher_mask, frame_resized, out_obj_ids, out_mask_logits)
+            publish_mask(publisher_mask, frame_resized, out_obj_ids, out_mask_logits, frame_time, global_frame_link)
             cv2.imshow("Segmented Frame", overlay)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 print("Exiting main")
@@ -284,18 +297,19 @@ def main():
         cv2.destroyAllWindows()
         ros.terminate()
 
-def publish_mask(mask_publisher, frame_resized, out_obj_ids, out_mask_logits):
+def publish_mask(mask_publisher, frame_resized, out_obj_ids, out_mask_logits, timestamp, frame_link):
     """ 
     Publish a Mask image with instance IDs.
 
     - The “mask“ values are no longer 0/255, but instead instance_id itself.
-    - Uses PNG compression to reduce bandwidth. 
+    - Uses PNG compression to reduce bandwidth.
+    - Adds erosion to clean mask edges.
     """
+
     all_mask = np.zeros((frame_resized.shape[0], frame_resized.shape[1]), dtype=np.uint8)  # HxW
 
     for i, obj_id in enumerate(out_obj_ids):
         out_mask = (out_mask_logits[i] > 0.0).permute(1, 2, 0).cpu().numpy().astype(np.uint8)
-
         if out_mask.ndim == 3 and out_mask.shape[-1] == 1:
             out_mask = out_mask[..., 0]
         elif out_mask.ndim == 3:
@@ -303,13 +317,16 @@ def publish_mask(mask_publisher, frame_resized, out_obj_ids, out_mask_logits):
 
         all_mask[out_mask > 0] = obj_id
 
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    all_mask = cv2.erode(all_mask, kernel, iterations=1)
+
     _, encoded_mask = cv2.imencode('.png', all_mask)
     mask_data = encoded_mask.tobytes()
 
     msg = roslibpy.Message({
         'header': {
-            'stamp': {'secs': int(time.time()), 'nsecs': 0},
-            'frame_id': 'center_depth_optical_frame'
+            'stamp': {'secs': timestamp[0], 'nsecs': timestamp[1]},
+            'frame_id': frame_link
         },
         'height': all_mask.shape[0],
         'width': all_mask.shape[1],
@@ -320,7 +337,7 @@ def publish_mask(mask_publisher, frame_resized, out_obj_ids, out_mask_logits):
     })
 
     mask_publisher.publish(msg)
-    
+
 
 if __name__ == "__main__":
     try:

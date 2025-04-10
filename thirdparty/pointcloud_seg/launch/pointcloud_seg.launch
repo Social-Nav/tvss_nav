@@ -1,0 +1,14 @@
+<!-- pointcloud_seg/launch/pointcloud_seg.launch -->
+<launch>
+  <arg name="pointcloud_topic" default="/camera/depth/color/points" />
+  <arg name="mask_topic" default="/segmented_image/mask" />
+  <arg name="rgb_info_topic" default="/camera/color/camera_info" />
+  <arg name="depth_info_topic" default="/rto/d415/depth/camera_info" />
+
+  <node name="seg_node" pkg="pointcloud_seg" type="seg_node" output="screen">
+    <param name="pointcloud_topic" value="$(arg pointcloud_topic)" />
+    <param name="mask_topic" value="$(arg mask_topic)" />
+    <param name="rgb_info_topic" value="$(arg rgb_info_topic)" />
+    <param name="depth_info_topic" value="$(arg depth_info_topic)" />
+  </node>
+</launch>

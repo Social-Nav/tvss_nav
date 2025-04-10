@@ -54,7 +54,7 @@
   
   <arg name="visualization" default="rviz" doc="[rviz, flatland]" />
   <arg name="show_rviz" default="true" doc="Enables rviz in gazebo" />
-  <arg name="rviz_file" default="nav"/>
+  <arg name="rviz_file" default="nav_$(arg model)"/>
   
   <arg name="auto_reset" default="true"/>
 

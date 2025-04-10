@@ -2,3 +2,11 @@
 __pycache__
 
 build/
+devel/
+logs/
+.catkin_tools/
+
+*.onnx
+*.trt
+checkpoints/
+.swift-sfdc.json
