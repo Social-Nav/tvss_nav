@@ -2,6 +2,7 @@
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/Image.h>
+#include <sensor_msgs/CompressedImage.h>
 #include <sensor_msgs/CameraInfo.h>
 #include <sensor_msgs/image_encodings.h>
 #include <sensor_msgs/point_cloud2_iterator.h>
@@ -12,6 +13,7 @@
 
 #include <message_filters/subscriber.h>
 #include <message_filters/sync_policies/approximate_time.h>
+#include <message_filters/sync_policies/exact_time.h>
 #include <message_filters/synchronizer.h>
 
 #include <tf/transform_listener.h>
@@ -40,7 +42,8 @@ public:
 
         rgb_info_sub_ = nh_.subscribe(rgb_info_topic_, 1, &PointCloudSegNode::handleRgbInfo, this);
 
-        sync_.reset(new Sync(ApproxSyncPolicy(100), cloud_sub_, mask_sub_));
+        // Change to ExactTime synchronization
+        sync_.reset(new Sync(ExactSyncPolicy(10), cloud_sub_, mask_sub_));
         sync_->registerCallback(boost::bind(&PointCloudSegNode::processData, this, _1, _2));
 
         depth_image_pub_ = nh_.advertise<sensor_msgs::Image>("/rgb_depth_image", 1);
@@ -51,14 +54,16 @@ private:
     tf::TransformListener tf_listener_;
 
     message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub_;
-    message_filters::Subscriber<sensor_msgs::Image> mask_sub_;
+    // message_filters::Subscriber<sensor_msgs::Image> mask_sub_;
+    message_filters::Subscriber<sensor_msgs::CompressedImage> mask_sub_;
     ros::Subscriber rgb_info_sub_;
     ros::Publisher depth_image_pub_;
 
     std::string pointcloud_topic_, mask_topic_, rgb_info_topic_;
 
-    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2, sensor_msgs::Image> ApproxSyncPolicy;
-    typedef message_filters::Synchronizer<ApproxSyncPolicy> Sync;
+    // typedef message_filters::sync_policies::ExactTime<sensor_msgs::PointCloud2, sensor_msgs::Image> ExactSyncPolicy;
+    typedef message_filters::sync_policies::ExactTime<sensor_msgs::PointCloud2, sensor_msgs::CompressedImage> ExactSyncPolicy;
+    typedef message_filters::Synchronizer<ExactSyncPolicy> Sync;
     boost::shared_ptr<Sync> sync_;
 
     std::unordered_map<int, ros::Publisher> instance_pubs_;
@@ -72,39 +77,32 @@ private:
     }
 
     void processData(const sensor_msgs::PointCloud2ConstPtr& cloud_msg,
-                     const sensor_msgs::ImageConstPtr& mask_msg)
+                    //  const sensor_msgs::ImageConstPtr& mask_msg)
+                    const sensor_msgs::CompressedImageConstPtr& mask_msg)
     {
+        // double t_cloud = cloud_msg->header.stamp.toSec();
+        // double t_mask = mask_msg->header.stamp.toSec();
+        // ROS_INFO("Time diff (mask - cloud): %.6f sec", t_mask - t_cloud);
+    
         if (rgb_intrinsics_.empty()) {
             ROS_WARN("Waiting for camera intrinsics...");
             return;
         }
-
+    
         cv::Mat mask;
-        bool decoded = false;
-        try {
-            // Attempt raw conversion first
-            cv_bridge::CvImageConstPtr cv_mask_raw = cv_bridge::toCvShare(mask_msg, sensor_msgs::image_encodings::MONO8);
-            mask = cv_mask_raw->image;
-            decoded = true;
-            ROS_DEBUG_ONCE("Mask received as raw sensor_msgs::Image");
-        } catch (cv_bridge::Exception& e) {
-            ROS_WARN_ONCE("Raw decoding failed, trying PNG decode (maybe this is a compressed PNG Image masquerading as raw)...");
-            try {
-                std::vector<uint8_t> data = mask_msg->data;
-                mask = cv::imdecode(cv::Mat(data), cv::IMREAD_GRAYSCALE);
-                decoded = !mask.empty();
-                if (!decoded) ROS_ERROR("cv::imdecode failed: empty result.");
-                else ROS_DEBUG_ONCE("Successfully decoded PNG-compressed mask image");
-            } catch (const std::exception& ex) {
-                ROS_ERROR("Mask decoding failed: %s", ex.what());
-                return;
-            }
-        }
-
-        if (!decoded) {
-            ROS_ERROR("Unable to decode mask image");
+    
+        // Attempt raw conversion first
+        // cv_bridge::CvImageConstPtr cv_mask_raw = cv_bridge::toCvShare(mask_msg, sensor_msgs::image_encodings::MONO8);
+        // mask = cv_mask_raw->image;
+    
+        // Decode compressed PNG image
+        mask = cv::imdecode(cv::Mat(mask_msg->data), cv::IMREAD_GRAYSCALE);
+        if (mask.empty()) {
+            ROS_ERROR("cv::imdecode failed: received empty mask.");
             return;
         }
+    
+        ROS_DEBUG_ONCE("Successfully decoded PNG-compressed mask image");
 
         tf::StampedTransform tf_transform;
         try {
@@ -220,6 +218,7 @@ private:
         instance_pubs_[label].publish(cloud);
     }
 };
+
 
 int main(int argc, char** argv)
 {

@@ -3,7 +3,8 @@
 
 import rospy
 import numpy as np
-import tf
+import tf2_ros
+import tf2_sensor_msgs.tf2_sensor_msgs as tf2_sensor_msgs
 import threading
 from nav_msgs.msg import OccupancyGrid
 from sensor_msgs.msg import PointCloud2
@@ -15,12 +16,23 @@ from geometry_msgs.msg import PointStamped
 
 class CostmapUpdater:
     def __init__(self):
-        rospy.init_node("costmap_updater", anonymous=True)
+        rospy.init_node("costmap_updater", anonymous=False)
         rospy.loginfo("Costmap updater node launched...")
 
         # Parameters
         self.map_frame = rospy.get_param("~map_frame", "map")
-        self.costmap_topic = rospy.get_param("~costmap_topic", "/rto/move_base_flex/global_costmap/costmap")
+
+        while not rospy.has_param("model") and not rospy.is_shutdown():
+            rospy.loginfo("Waiting for model parameter...")
+            rospy.sleep(0.1)
+
+        self.prefix = rospy.get_param("model", "").strip("/")
+        self.costmap_topic = rospy.get_param(
+            "~costmap_topic",
+            f"/{self.prefix}/move_base_flex/global_costmap/costmap" if self.prefix else "/move_base_flex/global_costmap/costmap"
+        )
+        print(f"Costmap topic: {self.costmap_topic}")
+
         self.output_topic = rospy.get_param("~output_topic", "/local_costmap_processed")
         self.cloud_prefix = rospy.get_param("~cloud_prefix", "/segmented_cloud/")
 
@@ -28,10 +40,11 @@ class CostmapUpdater:
         self.max_height = rospy.get_param("~max_height", 2.0)
         self.min_distance = rospy.get_param("~min_distance", 0.1)
         self.max_distance = rospy.get_param("~max_distance", 10.0)
-        self.cleanup_threshold = rospy.get_param("~cleanup_threshold", 2.0)
+        self.cleanup_threshold = rospy.get_param("~cleanup_threshold", 1.0)
 
         # TF + sync
-        self.tf_listener = tf.TransformListener()
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.lock = threading.Lock()
 
         # ROS I/O
@@ -50,7 +63,7 @@ class CostmapUpdater:
 
         # Periodic callbacks
         rospy.Timer(rospy.Duration(1.0), self.update_segmented_clouds)
-        rospy.Timer(rospy.Duration(4.0), self.cleanup_old_segments)
+        rospy.Timer(rospy.Duration(1.0), self.cleanup_old_segments)
 
     def update_segmented_clouds(self, event):
         all_topics = rospy.get_published_topics()
@@ -68,39 +81,26 @@ class CostmapUpdater:
         timestamp = msg.header.stamp
         self.last_cloud_time[instance_id] = timestamp.to_sec()
 
-        with self.lock:
-            self.segmented_pointclouds[instance_id] = []
-
         try:
-            self.tf_listener.waitForTransform(
+            transform = self.tf_buffer.lookup_transform(
                 self.map_frame, cloud_frame, timestamp, rospy.Duration(1.0))
-        except (tf.Exception, tf.LookupException, tf.ConnectivityException):
+            transformed_cloud = tf2_sensor_msgs.do_transform_cloud(msg, transform)
+        except (tf2_ros.LookupException, tf2_ros.ExtrapolationException):
             rospy.logwarn(f"TF transform failed: {cloud_frame} -> {self.map_frame} at {timestamp.to_sec()}")
             return
 
-        for p in pc2.read_points(msg, field_names=("x", "y", "z"), skip_nans=True):
+        points = []
+        for p in pc2.read_points(transformed_cloud, field_names=("x", "y", "z"), skip_nans=True):
             x, y, z = p[:3]
-            distance = np.sqrt(x**2 + y**2)
-            if distance < self.min_distance or distance > self.max_distance:
+            # distance = np.sqrt(x**2 + y**2)
+            # if distance < self.min_distance or distance > self.max_distance:
+            #     continue
+            if z < self.min_height or z > self.max_height:
                 continue
+            points.append((x, y, z))
 
-            point = PointStamped()
-            point.header.frame_id = cloud_frame
-            point.header.stamp = timestamp
-            point.point.x = x
-            point.point.y = y
-            point.point.z = z
-
-            try:
-                transformed_point = self.tf_listener.transformPoint(self.map_frame, point)
-                with self.lock:
-                    if instance_id in self.segmented_pointclouds:
-                        self.segmented_pointclouds[instance_id].append(
-                            (transformed_point.point.x, transformed_point.point.y, transformed_point.point.z)
-                        )
-            except (tf.Exception, tf.LookupException, tf.ConnectivityException):
-                rospy.logwarn("TF transform failed while converting point.")
-                continue
+        with self.lock:
+            self.segmented_pointclouds[instance_id] = points
 
         self.update_costmap()
 
@@ -119,6 +119,7 @@ class CostmapUpdater:
         self.update_costmap()
 
     def costmap_callback(self, msg):
+        rospy.loginfo("Received costmap update.")
         self.raw_costmap = np.array(msg.data).reshape((msg.info.height, msg.info.width))
         self.map_info = msg.info
         self.latest_costmap_time = msg.header.stamp
