@@ -83,7 +83,7 @@ def export_model(model: SAM2VideoPredictor, out_dir: str):
     image_encoder.eval()
 
 
-    torch.onnx.export(image_encoder, dummy_input, out_dir + "/hiera_t_image_encoder.onnx", export_params=True, opset_version=17, output_names=["vision_features", "vision_pos_enc_0", "vision_pos_enc_1", "vision_pos_enc_2", "backbone_fpn_0", "backbone_fpn_1", "backbone_fpn_2"],verbose=True)
+    torch.onnx.export(image_encoder, dummy_input, out_dir + "/hiera_l_image_encoder.onnx", export_params=True, opset_version=17, output_names=["vision_features", "vision_pos_enc_0", "vision_pos_enc_1", "vision_pos_enc_2", "backbone_fpn_0", "backbone_fpn_1", "backbone_fpn_2"],verbose=True)
     
     # trunk = Trunk(model)
     # trunk.eval()
@@ -96,8 +96,8 @@ def export_model(model: SAM2VideoPredictor, out_dir: str):
 if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    sam2_checkpoint = "checkpoints/sam2.1_hiera_tiny.pt"
-    model_cfg = "configs/sam2.1/sam2.1_hiera_t.yaml"
+    sam2_checkpoint = "checkpoints/sam2.1_hiera_large.pt"
+    model_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
 
     predictor = build_sam2_video_predictor(model_cfg, sam2_checkpoint, device=device)
 
