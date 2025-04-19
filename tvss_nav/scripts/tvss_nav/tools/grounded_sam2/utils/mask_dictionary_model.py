@@ -14,7 +14,7 @@ class MaskDictionaryModel:
     promote_type:str = "mask"
     labels:dict = field(default_factory=dict)
 
-    def add_new_frame_annotation(self, mask_list, box_list, label_list, background_value = 0):
+    def add_new_frame_annotation(self, mask_list, box_list, label_list, background_value=0):
         mask_img = torch.zeros(mask_list.shape[-2:])
         anno_2d = {}
         for idx, (mask, box, label) in enumerate(zip(mask_list, box_list, label_list)):
@@ -26,8 +26,17 @@ class MaskDictionaryModel:
             mask_img[mask == True] = final_index
             # print("label", label)
             name = label
-            box = box # .numpy().tolist()
-            new_annotation = ObjectInfo(instance_id = final_index, mask = mask, class_name = name, x1 = box[0], y1 = box[1], x2 = box[2], y2 = box[3])
+            if isinstance(box, torch.Tensor):
+                box_list = box.cpu().numpy().tolist()
+            elif isinstance(box, np.ndarray):
+                box_list = box.tolist()
+            elif isinstance(box, list):
+                box_list = box
+            else:
+                raise TypeError("Unsupported type for box. Must be torch.Tensor, numpy.ndarray, or list.")
+
+            new_annotation = ObjectInfo(instance_id=final_index, mask=mask, class_name=name, 
+                                        x1=int(box_list[0]), y1=int(box_list[1]), x2=int(box_list[2]), y2=int(box_list[3]))
             anno_2d[final_index] = new_annotation
 
         # np.save(os.path.join(output_dir, output_file_name), mask_img.numpy().astype(np.uint16))
@@ -38,20 +47,30 @@ class MaskDictionaryModel:
     def update_masks(self, tracking_annotation_dict, iou_threshold=0.8, objects_count=0):
         updated_masks = {}
 
+        # print("\n\nlen(seg_obj_ids):", len(self.labels.items()))
         for seg_obj_id, seg_mask in self.labels.items():  # tracking_masks
             flag = 0 
             new_mask_copy = ObjectInfo()
             if seg_mask.mask.sum() == 0:
                 continue
             
+            # print("len(tracking_annotation_dict.labels.items()):", len(tracking_annotation_dict.labels.items()))
+            # print("seg_obj_id: ", seg_obj_id)
             for object_id, object_info in tracking_annotation_dict.labels.items():  # grounded_sam masks
                 iou = self.calculate_iou(seg_mask.mask, object_info.mask)  # tensor, numpy
-                # print("iou", iou)
-                if iou > iou_threshold:
+                # print("object_id: ", object_id)
+                # print("iou: ", iou)
+                if iou >= iou_threshold:
+                    # print("iou >= iou_threshold: ", iou, iou_threshold)
                     flag = object_info.instance_id
                     new_mask_copy.mask = seg_mask.mask
                     new_mask_copy.instance_id = object_info.instance_id
                     new_mask_copy.class_name = seg_mask.class_name
+                    new_mask_copy.x1 = object_info.x1
+                    new_mask_copy.y1 = object_info.y1
+                    new_mask_copy.x2 = object_info.x2
+                    new_mask_copy.y2 = object_info.y2
+                    new_mask_copy.logit = object_info.logit
                     break
                 
             if not flag:
@@ -60,6 +79,11 @@ class MaskDictionaryModel:
                 new_mask_copy.instance_id = objects_count
                 new_mask_copy.mask = seg_mask.mask
                 new_mask_copy.class_name = seg_mask.class_name
+                new_mask_copy.x1 = seg_mask.x1
+                new_mask_copy.y1 = seg_mask.y1
+                new_mask_copy.x2 = seg_mask.x2
+                new_mask_copy.y2 = seg_mask.y2
+                new_mask_copy.logit = seg_mask.logit
             updated_masks[flag] = new_mask_copy
         self.labels = updated_masks
         return objects_count
@@ -70,6 +94,9 @@ class MaskDictionaryModel:
     def get_target_logit(self, instance_id):
         return self.labels[instance_id].logit
     
+    def get_max_instance_id(self):
+        return max(self.labels.keys(), default=0)
+
     @staticmethod
     def calculate_iou(mask1, mask2):
         # Convert masks to float tensors for calculations
@@ -83,7 +110,6 @@ class MaskDictionaryModel:
         # Calculate IoU
         iou = intersection / union
         return iou
-
 
     def save_empty_mask_and_json(self, mask_data_dir, json_data_dir, image_name_list=None):
         mask_img = torch.zeros((self.mask_height, self.mask_width))
@@ -145,24 +171,20 @@ class ObjectInfo:
         return self.instance_id
 
     def update_box(self):
-        # 找到所有非零值的索引
         nonzero_indices = torch.nonzero(self.mask)
         
-        # 如果没有非零值，返回一个空的边界框
         if nonzero_indices.size(0) == 0:
             # print("nonzero_indices", nonzero_indices)
             return []
         
-        # 计算最小和最大索引
         y_min, x_min = torch.min(nonzero_indices, dim=0)[0]
         y_max, x_max = torch.max(nonzero_indices, dim=0)[0]
         
-        # 创建边界框 [x_min, y_min, x_max, y_max]
         bbox = [x_min.item(), y_min.item(), x_max.item(), y_max.item()]        
-        self.x1 = bbox[0]
-        self.y1 = bbox[1]
-        self.x2 = bbox[2]
-        self.y2 = bbox[3]
+        self.x1 = int(bbox[0])
+        self.y1 = int(bbox[1])
+        self.x2 = int(bbox[2])
+        self.y2 = int(bbox[3])
     
     def to_dict(self):
         return {

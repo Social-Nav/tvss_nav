@@ -22,30 +22,57 @@ def decode_image(msg, height=480, width=640):
     height_actual = msg.get('height', height)
     width_actual = msg.get('width', width)
     img = np_arr.reshape((height_actual, width_actual, 3))
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
     return img
 
-def encode_image_to_compressed(img):
+def encode_image_to_compressed(img, format='jpg', quality=80):
     """
     Encode a CV2 image to a base64 string for ROS CompressedImage message.
+    
+    Args:
+        img: OpenCV image (BGR or grayscale).
+        format: Compression format ('jpg' or 'png').
+        quality: JPEG quality (ignored if using PNG).
+    
+    Returns:
+        Base64 string of compressed image.
     """
     if len(img.shape) == 2:
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-    retval, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 80])
-    jpg_as_text = base64.b64encode(buffer).decode('utf-8')
-    return jpg_as_text
 
-def create_compressed_image_message(img, frame_id='camera_frame'):
+    if format == 'jpg':
+        encode_params = [cv2.IMWRITE_JPEG_QUALITY, quality]
+    elif format == 'png':
+        encode_params = [cv2.IMWRITE_PNG_COMPRESSION, 3]
+    else:
+        raise ValueError(f"Unsupported format: {format}")
+
+    retval, buffer = cv2.imencode('.'+format, img, encode_params)
+    if not retval:
+        raise ValueError("Image encoding failed.")
+
+    return base64.b64encode(buffer).decode('utf-8')
+
+def create_compressed_image_message(img, format='jpg', quality=80, timestamp=None, frame_link='camera_frame'):
     """
     Create a ROS CompressedImage message from a CV2 image.
     """
-    jpg_encoded = encode_image_to_compressed(img)
+    if timestamp is None:
+        secs = int(time.time())
+        nsecs = int((time.time() - secs) * 1e9)
+    else:
+        secs = timestamp[0]
+        nsecs = timestamp[1]
+
+    img_encoded = encode_image_to_compressed(img, format, quality)
+
     return {
         'header': {
-            'stamp': {'secs': int(time.time()), 'nsecs': 0},
-            'frame_id': frame_id
+            'stamp': {'secs': secs, 'nsecs': nsecs},
+            'frame_id': frame_link
         },
-        'format': 'jpeg',
-        'data': jpg_encoded
+        'format': format,
+        'data': img_encoded
     }
 
 def setup_ros_bridge(host='localhost', port=9090):
