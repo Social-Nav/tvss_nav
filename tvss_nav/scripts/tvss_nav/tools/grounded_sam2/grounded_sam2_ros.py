@@ -57,8 +57,8 @@ def perform_init_detection(processor, grounding_model, camera_predictor, image_p
     results = processor.post_process_grounded_object_detection(
         outputs,
         inputs.input_ids,
-        box_threshold=0.3,
-        text_threshold=0.3,
+        box_threshold=0.4,
+        text_threshold=0.4,
         target_sizes=[image_pil.size[::-1]]
     )
 
@@ -134,11 +134,10 @@ def perform_detection(processor, grounding_model, camera_predictor, image_predic
     results = processor.post_process_grounded_object_detection(
         outputs,
         inputs.input_ids,
-        box_threshold=0.3,
-        text_threshold=0.3,
+        box_threshold=0.4,
+        text_threshold=0.4,
         target_sizes=[image_pil.size[::-1]]
     )
-
     if len(results[0]["boxes"]) == 0:
         raise NoObjectDetected("No objects detected in the image.")
     
@@ -266,9 +265,9 @@ def main():
     WIDTH = 640
 
     # Model and checkpoint settings
-    SAM2_CHECKPOINT = "./checkpoints/sam2.1_hiera_large.pt"
-    MODEL_CFG = "configs/sam2.1/sam2.1_hiera_l.yaml"
-    MODEL_ID = "IDEA-Research/grounding-dino-tiny"
+    SAM2_CHECKPOINT = "./checkpoints/sam2.1_hiera_tiny.pt"
+    MODEL_CFG = "configs/sam2.1/sam2.1_hiera_t.yaml"
+    MODEL_ID = "IDEA-Research/grounding-dino-base"
 
     cfg = OmegaConf.load("sam2/" + MODEL_CFG)
     use_trt = cfg.model.get("use_trt", None)
