@@ -157,111 +157,111 @@ void SFMSensorInterface::laserCb(
   // belong to a person or an
   // dynamic obstacle
 
-  // transform people positions to
-  // robot frame
-  // people_mutex_.lock();
-  people_msgs::People people = people_;
-  // people_mutex_.unlock();
+  // // transform people positions to
+  // // robot frame
+  // // people_mutex_.lock();
+  // people_msgs::People people = people_;
+  // // people_mutex_.unlock();
 
-  std::vector<geometry_msgs::Point> people_points;
-  if (people.header.frame_id != odom_frame_) {
-    geometry_msgs::PointStamped person_point;
-    person_point.header = people.header;
+  // std::vector<geometry_msgs::Point> people_points;
+  // if (people.header.frame_id != odom_frame_) {
+  //   geometry_msgs::PointStamped person_point;
+  //   person_point.header = people.header;
 
-    for (auto person : people.people) {
-      person_point.point = person.position;
-      person_point.header.stamp = ros::Time(0);
-      try {
-        geometry_msgs::PointStamped p_point =
-            tf_buffer_->transform(person_point, odom_frame_);
-        people_points.push_back(p_point.point);
-      } catch (tf2::TransformException &ex) {
-        ROS_WARN("Could NOT transform "
-                 "person point to %s: "
-                 "%s",
-                 odom_frame_.c_str(), ex.what());
-        return;
-      }
-    }
-  } else {
-    for (auto person : people.people) {
-      people_points.push_back(person.position);
-    }
-  }
-  // Remove the points in the
-  // people radius
-  std::vector<utils::Vector2d> points_aux;
-  for (utils::Vector2d p : points) {
-    bool remove = false;
-    for (auto person : people_points) {
-      float dx = p.getX() - person.x;
-      float dy = p.getY() - person.y;
-      float d = std::hypotf(dx, dy);
-      if (d <= person_radius_) {
-        remove = true;
-        break;
-      }
-    }
-    if (!remove)
-      points_aux.push_back(p);
-  }
-  points.clear();
-  points = points_aux;
-  // we can have one point per
-  // sector as much
-  if (points.empty()) {
-    obstacles_ = points;
-    return;
-  }
+  //   for (auto person : people.people) {
+  //     person_point.point = person.position;
+  //     person_point.header.stamp = ros::Time(0);
+  //     try {
+  //       geometry_msgs::PointStamped p_point =
+  //           tf_buffer_->transform(person_point, odom_frame_);
+  //       people_points.push_back(p_point.point);
+  //     } catch (tf2::TransformException &ex) {
+  //       ROS_WARN("Could NOT transform "
+  //                "person point to %s: "
+  //                "%s",
+  //                odom_frame_.c_str(), ex.what());
+  //       return;
+  //     }
+  //   }
+  // } else {
+  //   for (auto person : people.people) {
+  //     people_points.push_back(person.position);
+  //   }
+  // }
+  // // Remove the points in the
+  // // people radius
+  // std::vector<utils::Vector2d> points_aux;
+  // for (utils::Vector2d p : points) {
+  //   bool remove = false;
+  //   for (auto person : people_points) {
+  //     float dx = p.getX() - person.x;
+  //     float dy = p.getY() - person.y;
+  //     float d = std::hypotf(dx, dy);
+  //     if (d <= person_radius_) {
+  //       remove = true;
+  //       break;
+  //     }
+  //   }
+  //   if (!remove)
+  //     points_aux.push_back(p);
+  // }
+  // points.clear();
+  // points = points_aux;
+  // // we can have one point per
+  // // sector as much
+  // if (points.empty()) {
+  //   obstacles_ = points;
+  //   return;
+  // }
 
-  // transform dynamic obstacles
-  // positions to robot frame
-  // obs_mutex_.lock();
-  dynamic_obstacle_detector::DynamicObstacles obstacles = dyn_obs_;
-  // obs_mutex_.unlock();
+  // // transform dynamic obstacles
+  // // positions to robot frame
+  // // obs_mutex_.lock();
+  // dynamic_obstacle_detector::DynamicObstacles obstacles = dyn_obs_;
+  // // obs_mutex_.unlock();
 
-  std::vector<geometry_msgs::Point> ob_points;
-  if (obstacles.header.frame_id != odom_frame_) {
-    geometry_msgs::PointStamped ob_point;
-    ob_point.header = obstacles.header;
-    // ob_point.stamp = ros::Time();
-    for (auto obstacle : obstacles.obstacles) {
-      ob_point.point = obstacle.position;
-      ob_point.header.stamp = ros::Time(0);
-      try {
-        geometry_msgs::PointStamped o_point =
-            tf_buffer_->transform(ob_point, odom_frame_);
-        ob_points.push_back(o_point.point);
-      } catch (tf2::TransformException &ex) {
-        ROS_WARN("SFM: Could NOT transform "
-                 "obstacle point to %s: "
-                 "%s",
-                 odom_frame_.c_str(), ex.what());
-        return;
-      }
-    }
-  }
-  // Remove the points in the
-  // object radius (approximated
-  // by person radius because we
-  // do not know the radius)
-  points_aux.clear();
-  for (utils::Vector2d p : points) {
-    bool remove = false;
-    for (auto ob : ob_points) {
-      float dx = p.getX() - ob.x;
-      float dy = p.getY() - ob.y;
-      float d = std::hypotf(dx, dy);
-      if (d <= person_radius_) {
-        remove = true;
-        break;
-      }
-    }
-    if (!remove)
-      points_aux.push_back(p);
-  }
-  points.clear();
-  points = points_aux;
+  // std::vector<geometry_msgs::Point> ob_points;
+  // if (obstacles.header.frame_id != odom_frame_) {
+  //   geometry_msgs::PointStamped ob_point;
+  //   ob_point.header = obstacles.header;
+  //   // ob_point.stamp = ros::Time();
+  //   for (auto obstacle : obstacles.obstacles) {
+  //     ob_point.point = obstacle.position;
+  //     ob_point.header.stamp = ros::Time(0);
+  //     try {
+  //       geometry_msgs::PointStamped o_point =
+  //           tf_buffer_->transform(ob_point, odom_frame_);
+  //       ob_points.push_back(o_point.point);
+  //     } catch (tf2::TransformException &ex) {
+  //       ROS_WARN("SFM: Could NOT transform "
+  //                "obstacle point to %s: "
+  //                "%s",
+  //                odom_frame_.c_str(), ex.what());
+  //       return;
+  //     }
+  //   }
+  // }
+  // // Remove the points in the
+  // // object radius (approximated
+  // // by person radius because we
+  // // do not know the radius)
+  // points_aux.clear();
+  // for (utils::Vector2d p : points) {
+  //   bool remove = false;
+  //   for (auto ob : ob_points) {
+  //     float dx = p.getX() - ob.x;
+  //     float dy = p.getY() - ob.y;
+  //     float d = std::hypotf(dx, dy);
+  //     if (d <= person_radius_) {
+  //       remove = true;
+  //       break;
+  //     }
+  //   }
+  //   if (!remove)
+  //     points_aux.push_back(p);
+  // }
+  // points.clear();
+  // points = points_aux;
 
   obstacles_ = points;
   publish_obstacle_points(points);

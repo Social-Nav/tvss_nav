@@ -21,3 +21,15 @@ catkin build
 cd tmux/arena_sfm
 tmuxinator
 ```
+
+## 注意
+
+修改了lightsfm头文件的参数后，要想让参数在sfm_local_controller plugin中生效，需要清除sfm_local_controller plugin的缓存，具体如下:
+```
+cd thirdparty/sfm/dep/lightsfm
+...do some changes...
+make
+sudo make install
+catkin clean sfm_local_controller
+catkin build sfm_local_controller
+```
