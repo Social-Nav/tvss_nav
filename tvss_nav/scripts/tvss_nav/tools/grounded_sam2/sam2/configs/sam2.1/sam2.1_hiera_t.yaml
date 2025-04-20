@@ -119,3 +119,4 @@ model:
   # Compilation flag
   # HieraT does not currently support compilation, should always be set to False
   compile_image_encoder: False
+  use_trt: True

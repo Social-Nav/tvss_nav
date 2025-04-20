@@ -118,3 +118,4 @@ model:
   use_mlp_for_obj_ptr_proj: true
   # Compilation flag
   compile_image_encoder: False
+  use_trt: True

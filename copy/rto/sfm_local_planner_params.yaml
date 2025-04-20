@@ -1,0 +1,49 @@
+# base_local_planner: sfm_local_controller/SFMControllerROS
+controllers:
+  - name: SFMControllerROS
+    type: sfm_local_controller/SFMControllerROS
+
+controller_frequency: 5.0
+controller_patience: 15.0
+planner_frequency: 0.0
+
+
+
+SFMControllerROS:
+
+  robot_frame: rto/base_link
+  planner_frame: rto/odom
+
+  max_lin_vel:        2.0
+  min_lin_vel:        -1.0
+  max_rot_vel:        !degrees 160.0
+  min_rot_vel:        !degrees 30.0
+  min_rot_in_place:   !degrees 40.0 
+  max_lin_acc:        10.0
+  max_rot_acc:        20.0
+  a:                  5.0
+ 
+  goal_tolerance:     0.2
+  yaw_tolerance:      0.3
+  local_goal_dist:    1.1
+  robot_radius:       0.18
+  people_radius:      0.35
+  
+  #sensor interface params
+  laser_topic:        scan
+  #people_topic:      
+  dyn_obs_topic:      dynamic_obstacles
+  odom_topic:         odom
+  max_obstacle_dist:  0.5
+  naive_goal_time:    1.0
+  people_velocity:    1.9
+  
+  # sfm params
+  sfm_goal_weight:    1.0
+  sfm_obstacle_weight: 15.0
+  sfm_people_weight:  8.0
+
+  #collision checker
+  use_laser:          true
+  sensor_uncertainty: 0.05
+  use_range:          false
