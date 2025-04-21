@@ -45,7 +45,7 @@ struct Forces {
 struct Parameters {
   Parameters()
       : forceFactorDesired(2.0), forceFactorObstacle(10),
-        forceSigmaObstacle(0.2), forceFactorSocial(2.1),
+        forceSigmaObstacle(0.6), forceFactorSocial(2.1),
         forceFactorGroupGaze(3.0), forceFactorGroupCoherence(2.0),
         forceFactorGroupRepulsion(1.0), lambda(2.0), gamma(0.35), n(2.0),
         nPrime(3.0), relaxationTime(0.5) {}
