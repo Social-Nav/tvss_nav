@@ -10,8 +10,7 @@ import yaml
 import time
 from typing import List, Dict, Any
 import roslibpy
-import numpy as np
-import cv2
+import re
 from openai import OpenAI
 
 class VLM:
@@ -27,7 +26,7 @@ class VLM:
         
         # Context management
         self.message_history: List[Dict[str, Any]] = []
-        self.max_history = 10  # Maximum number of message pairs to keep
+        self.max_history = 4  # Maximum number of message pairs to keep
         
         # Threading control
         self.input_event = threading.Event()
@@ -47,7 +46,7 @@ class VLM:
             else:
                 raise ConnectionError("Failed to connect to ROS")
         
-        # Load tools from YAML (instead of functions)
+        # Load tools from YAML
         tools_path = os.path.join(os.path.dirname(__file__), 'tools.yaml')
         with open(tools_path, 'r') as f:
             self.tools = yaml.safe_load(f)['tools']
@@ -55,18 +54,15 @@ class VLM:
         # Load configuration
         config_path = os.path.join(os.path.dirname(__file__), 'config.json')
         with open(config_path, 'r') as f:
-            config = json.load(f)
+            self.config = json.load(f)
         
         # Initialize OpenAI client
-        self.client = OpenAI(api_key=config['api_key'])
+        self.client = OpenAI(api_key=self.config['api_key'])
         
         # Load system prompt
         prompt_path = os.path.join(os.path.dirname(__file__), 'system_prompt.txt')
         with open(prompt_path, 'r') as f:
             self.system_prompt = f.read().strip()
-        
-        # Store config
-        self.config = config
         
         # Initialize image queue and latest image
         self.latest_image = None
@@ -141,104 +137,73 @@ class VLM:
         return self.user_input
 
     def query_gpt(self, image_base64, user_query=None):
-        """Query GPT with image and user input, forcing tool calls"""
+        """Query GPT with image and user input; single call to correctly get token usage"""
+        # Construct messages
         messages = [{"role": "system", "content": self.system_prompt}]
         messages.extend(self.message_history)
         image_uri = f"data:image/jpeg;base64,{image_base64}"
-        messages.append({
+        text = user_query if user_query else "Now first describe what has changed in the image. Then call your tool ONCE to segment all the important social entities."
+        user_message = {
             "role": "user",
             "content": [
-                {"type": "text", "text": user_query if user_query else "Now describe what has changed in the image. Then use your tools to segment the critical social entities."},
+                {"type": "text", "text": text},
                 {"type": "image_url", "image_url": {"url": image_uri}}
             ]
-        })
+        }
+        messages.append(user_message)
 
         if self.debug:
             print("\nSending request to OpenAI API…")
         else:
             print("\nProcessing…")
 
-        stream = self.client.chat.completions.create(
+        # One-time call, no stream, to get usage
+        response = self.client.chat.completions.create(
             model=self.config['model'],
             messages=messages,
             max_tokens=self.config['max_text_tokens'],
             tools=self.tools,
             tool_choice="auto",
-            stream=True
+            stream=False
         )
 
-        full_response = ""
-        current_response = {"role": "assistant", "content": ""}
-        tool_calls_buffer = {}  # Dict to track incomplete tool calls
+        # Get content and token statistics
+        assistant_content = response.choices[0].message.content
+        usage = response.usage
+        prompt_tokens = usage.prompt_tokens
+        completion_tokens = usage.completion_tokens
+        total_tokens = usage.total_tokens
 
-        for chunk in stream:
-            if self.shutdown_flag:
-                break
-            delta = chunk.choices[0].delta
+        # Output content
+        print(assistant_content)
+        if self.debug:
+            print(f"Tokens used - Prompt: {prompt_tokens}, Completion: {completion_tokens}, Total: {total_tokens}")
 
-            if hasattr(delta, "content") and delta.content is not None:
-                print(delta.content, end='', flush=True)
-                full_response += delta.content
-                current_response['content'] += delta.content
+        # Process any tool calls from the response
+        if hasattr(response.choices[0].message, "tool_calls"):
+            tool_calls = response.choices[0].message.tool_calls
+            if tool_calls:
+                for tool_call in tool_calls:
+                    if tool_call.function.name == "segment_social_entities_from_name":
+                        try:
+                            params = json.loads(tool_call.function.arguments)
+                            objects = params['object_names'].split('.')
+                            msg = f"Segmenting: {', '.join(objects)}"
+                            print(msg)
+                            # Here you can add the actual segmentation logic
+                            # For example, calling your ROS service or handling the segmentation
+                        except json.JSONDecodeError as e:
+                            if self.debug:
+                                print(f"Failed to parse tool arguments: {str(e)}")
 
-            if hasattr(delta, "tool_calls") and delta.tool_calls:
-                for tc in delta.tool_calls:
-                    # Get or create buffer for this tool call
-                    call_id = tc.index
-                    if call_id not in tool_calls_buffer:
-                        tool_calls_buffer[call_id] = {
-                            "name": "",
-                            "arguments": "",
-                            "complete": False
-                        }
-                    
-                    # Update function name if present
-                    if tc.function.name:
-                        tool_calls_buffer[call_id]["name"] = tc.function.name
-                    
-                    # Append arguments if present
-                    if tc.function.arguments:
-                        tool_calls_buffer[call_id]["arguments"] += tc.function.arguments
+        # Update message history
+        current_response = {"role": "assistant", "content": assistant_content}
+        self.message_history.append(user_message)
+        self.message_history.append(current_response)
+        if len(self.message_history) > self.max_history * 2:
+            self.message_history = self.message_history[-self.max_history*2:]
 
-        print()  # New line after streaming output
-
-        # Process completed tool calls
-        for call_id, call_info in tool_calls_buffer.items():
-            name = call_info["name"]
-            args = call_info["arguments"]
-            try:
-                params = json.loads(args)
-                if self.debug:
-                    print(f"[Tool Call] {name} → {params}")
-                # Handle tool implementation
-                if name == "segment_social_entities_from_name":
-                    objects = params['object_names'].split('.')
-                    msg = f"Segmenting: {', '.join(objects)}"
-                    print(msg)
-                    full_response += msg
-                    current_response['content'] += msg
-            except Exception as e:
-                if self.debug:
-                    print(f"Tool call parse error for {name}: {str(e)}")
-                    print(f"Raw arguments: {args}")
-                    print(f"Tool call buffer state: {tool_calls_buffer}")  # Add more debugging info
-
-        # 更新对话历史
-        if user_query:
-            user_message = {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": user_query},
-                    {"type": "image_url", "image_url": {"url": image_uri}}
-                ]
-            }
-            self.message_history.append(user_message)
-            self.message_history.append(current_response)
-            # 保持历史长度
-            if len(self.message_history) > self.max_history * 2:
-                self.message_history = self.message_history[-self.max_history*2:]
-
-        return full_response
+        return assistant_content
 
     def run(self):
         """Main loop for handling user input and periodic updates"""
