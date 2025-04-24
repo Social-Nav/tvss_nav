@@ -1,0 +1,20 @@
+<!-- pointcloud_seg/launch/pointcloud_seg.launch -->
+<launch>
+  <arg name="pointcloud_topic"     default="/camera/depth/color/points" />
+  <arg name="mask_topic"           default="/segmented_image/mask" />
+  <arg name="rgb_info_topic"       default="/camera/color/camera_info" />
+
+  <arg name="semantic_instances_topic" default="/instance_array" />
+  <arg name="visual_cloud_topic"      default="/masked_cloud" />
+
+  <arg name="voxel_leaf_size" default="0.1" />
+
+  <node name="seg_node" pkg="tvss_nav" type="seg_node" output="screen">
+    <param name="pointcloud_topic"     value="$(arg pointcloud_topic)" />
+    <param name="mask_topic"           value="$(arg mask_topic)" />
+    <param name="rgb_info_topic"       value="$(arg rgb_info_topic)" />
+    <param name="semantic_instances_topic" value="$(arg semantic_instances_topic)" />
+    <param name="visual_cloud_topic"       value="$(arg visual_cloud_topic)" />
+    <param name="voxel_leaf_size" value="$(arg voxel_leaf_size)" />
+  </node>
+</launch>

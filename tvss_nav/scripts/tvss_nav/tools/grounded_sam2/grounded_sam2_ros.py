@@ -89,7 +89,7 @@ def perform_init_detection(processor, grounding_model, camera_predictor, image_p
     elif masks.ndim == 4:
         masks = masks.squeeze(1)
 
-    mask_dict = MaskDictionaryModel(promote_type = "mask", mask_name = "0", mask_height = height, mask_width = width)
+    mask_dict = MaskDictionaryModel(promote_type="mask", mask_name="0", mask_height=height, mask_width=width)
     # If you are using point prompts, we uniformly sample positive points based on the mask
     if mask_dict.promote_type == "mask":
         mask_dict.add_new_frame_annotation(mask_list=torch.tensor(masks).to(device), box_list=input_boxes.tolist(), label_list=OBJECTS, background_value=0)
@@ -166,7 +166,7 @@ def perform_detection(processor, grounding_model, camera_predictor, image_predic
     elif masks.ndim == 4:
         masks = masks.squeeze(1)
 
-    mask_dict = MaskDictionaryModel(promote_type = "mask", mask_name = f"{frame_id}", mask_height = height, mask_width = width)
+    mask_dict = MaskDictionaryModel(promote_type="mask", mask_name=f"{frame_id}", mask_height=height, mask_width=width)
     # If you are using point prompts, we uniformly sample positive points based on the mask
     if mask_dict.promote_type == "mask":
         mask_dict.add_new_frame_annotation(mask_list=torch.tensor(masks).to(device), box_list=input_boxes.tolist(), label_list=OBJECTS, background_value=0)
@@ -268,7 +268,7 @@ def main():
     # Model and checkpoint settings
     SAM2_CHECKPOINT = "./checkpoints/sam2.1_hiera_large.pt"
     MODEL_CFG = "configs/sam2.1/sam2.1_hiera_l.yaml"
-    MODEL_ID = "IDEA-Research/grounding-dino-tiny"
+    MODEL_ID = "IDEA-Research/grounding-dino-base"
 
     cfg = OmegaConf.load("sam2/" + MODEL_CFG)
     use_trt = cfg.model.get("use_trt", None)
@@ -276,7 +276,27 @@ def main():
 
     #####################
     # State variables (now local to main)
+    #####################def main():
     #####################
+    # Configurable Parameters
+    #####################
+    # INPUT_IMAGE_TOPIC = '/robot_firstperson_rgb/compressed'
+    # INPUT_IMAGE_TOPIC = '/camera/color/image_raw'
+    INPUT_IMAGE_TOPIC = '/camera/color/image_raw/compressed'
+    OUTPUT_IMAGE_TOPIC = '/segmented_image'
+    IMAGE_MSG_TYPE = "CompressedImage"  # "CompressedImage" or "Image"
+    # IMAGE_MSG_TYPE = "Image"
+    RESET_TOPIC = '/scenario_reset'
+
+    ENABLE_IMAGE_PUBLISH = True
+    DEBUG_MODE = False
+    HEIGHT = 480
+    WIDTH = 640
+
+    # Model and checkpoint settings
+    SAM2_CHECKPOINT = "./checkpoints/sam2.1_hiera_large.pt"
+    MODEL_CFG = "configs/sam2.1/sam2.1_hiera_l.yaml"
+    MODEL_ID = "IDEA-Research/grounding-dino-base"
     global_msg = None
     msg_lock = Lock()
     text_prompt = None
