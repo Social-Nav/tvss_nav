@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import json
 import os
 import signal
@@ -12,6 +10,7 @@ from typing import List, Dict, Any
 import roslibpy
 import re
 from openai import OpenAI
+from tools.sfm_config.sfm_config import update_sfm_param
 
 class VLM:
     def __init__(self, debug=False, update_period=10.0):
@@ -27,6 +26,7 @@ class VLM:
         # Context management
         self.message_history: List[Dict[str, Any]] = []
         self.max_history = 4  # Maximum number of message pairs to keep
+        self.initial_task = None  # Store the initial task description
         
         # Threading control
         self.input_event = threading.Event()
@@ -136,13 +136,37 @@ class VLM:
         self.input_event.wait(timeout)
         return self.user_input
 
+    def update_sfm_param(self, param_name: str, value: float) -> str:
+        """Update a single SFM parameter using dynamic reconfigure.
+        
+        Args:
+            param_name: Name of the parameter to update
+            value: New value for the parameter
+            
+        Returns:
+            Response message indicating success or failure
+        """
+        try:
+            success = update_sfm_param(param_name, value, self.ros)
+            if success:
+                return f"Successfully updated {param_name} to {value}"
+            return f"Failed to update {param_name}"
+        except Exception as e:
+            return f"Error updating parameter: {str(e)}"
+
     def query_gpt(self, image_base64, user_query=None):
         """Query GPT with image and user input; single call to correctly get token usage"""
+        # Store initial task if this is the first query
+        if not self.message_history and user_query:
+            self.initial_task = user_query
+
         # Construct messages
         messages = [{"role": "system", "content": self.system_prompt}]
+        if self.initial_task:
+            messages.append({"role": "user", "content": self.initial_task})
         messages.extend(self.message_history)
         image_uri = f"data:image/jpeg;base64,{image_base64}"
-        text = user_query if user_query else "Now first describe what has changed in the image. Then call your tool ONCE to segment all the important social entities."
+        text = user_query if user_query else "Now the image is 10s after what you last seen. Based on your observation, segment all the important social entities if any and update sfm parameters if necessary."
         user_message = {
             "role": "user",
             "content": [
@@ -195,6 +219,20 @@ class VLM:
                         except json.JSONDecodeError as e:
                             if self.debug:
                                 print(f"Failed to parse tool arguments: {str(e)}")
+                    elif tool_call.function.name == "update_sfm_param":
+                        try:
+                            params = json.loads(tool_call.function.arguments)
+                            result = self.update_sfm_param(
+                                params['param_name'],
+                                float(params['value'])
+                            )
+                            print(result)
+                        except json.JSONDecodeError as e:
+                            if self.debug:
+                                print(f"Failed to parse tool arguments: {str(e)}")
+                        except Exception as e:
+                            if self.debug:
+                                print(f"Failed to update SFM parameter: {str(e)}")
 
         # Update message history
         current_response = {"role": "assistant", "content": assistant_content}
@@ -217,6 +255,7 @@ class VLM:
                     if user_query.lower() == 'q':
                         print("\nRestarting reasoning…")
                         self.message_history.clear()
+                        self.initial_task = None  # Reset initial task
                         continue
                     if not user_query:
                         continue
@@ -228,6 +267,7 @@ class VLM:
                         print("\nRestarting reasoning…")
                         self.paused = True
                         self.message_history.clear()
+                        self.initial_task = None  # Reset initial task
                         continue
                     if time.time() - self.last_update_time < self.update_period:
                         continue
@@ -253,7 +293,7 @@ class VLM:
             self.shutdown_callback()
 
 def main():
-    vlm = VLM(debug=True, update_period=5.0)
+    vlm = VLM(debug=False, update_period=10.0)
     vlm.run()
 
 if __name__ == '__main__':
