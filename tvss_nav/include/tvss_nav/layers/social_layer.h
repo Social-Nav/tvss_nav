@@ -6,7 +6,10 @@
 #include <costmap_2d/costmap_layer.h>
 #include <costmap_2d/layered_costmap.h>
 
-#include <tf/transform_listener.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_eigen/tf2_eigen.h>
 
 #include <tvss_nav/SemanticInstance.h>
 #include <tvss_nav/SemanticInstanceArray.h>
@@ -104,7 +107,6 @@ protected:
   int combination_method_;
 
 private:
-  tf::TransformListener tf_listener_; 
   void reconfigureCB(tvss_nav::SocialPluginConfig &config, uint32_t level);
 };
 

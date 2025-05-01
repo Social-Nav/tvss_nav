@@ -77,10 +77,21 @@ void SocialLayer::updateBounds(double robot_x, double robot_y, double robot_yaw,
     {
       pcl::PointCloud<pcl::PointXYZ> cloud, cloud_transformed;
       pcl::fromROSMsg(instance.cloud, cloud);
-
+      
+      geometry_msgs::TransformStamped tf_transform;
       try {
-        pcl_ros::transformPointCloud(global_frame_, cloud, cloud_transformed, tf_listener_);
-      } catch (tf::TransformException &ex) {
+        tf_transform = tf_->lookupTransform(
+            global_frame_, 
+            instance.cloud.header.frame_id, 
+            instance.cloud.header.stamp, 
+            ros::Duration(0.5));
+        
+        Eigen::Affine3d tf_eigen;
+        tf_eigen = tf2::transformToEigen(tf_transform);
+        Eigen::Matrix4f tf_mat = tf_eigen.matrix().cast<float>();
+
+        pcl::transformPointCloud(cloud, cloud_transformed, tf_mat);
+      } catch (const tf2::TransformException& ex) {
         ROS_WARN("Transform failed in updateBounds: %s", ex.what());
         continue;
       }
@@ -116,10 +127,21 @@ void SocialLayer::updateCosts(costmap_2d::Costmap2D& master_grid,
       pcl::PointCloud<pcl::PointXYZ> cloud, cloud_transformed;
       pcl::fromROSMsg(instance.cloud, cloud);
 
+      geometry_msgs::TransformStamped tf_transform;
       try {
-        pcl_ros::transformPointCloud(global_frame_, cloud, cloud_transformed, tf_listener_);
-      } catch (tf::TransformException &ex) {
-        ROS_WARN("Transform failed in clearing: %s", ex.what());
+        tf_transform = tf_->lookupTransform(
+            global_frame_, 
+            instance.cloud.header.frame_id, 
+            instance.cloud.header.stamp, 
+            ros::Duration(0.5));
+        
+        Eigen::Affine3d tf_eigen;
+        tf_eigen = tf2::transformToEigen(tf_transform);
+        Eigen::Matrix4f tf_mat = tf_eigen.matrix().cast<float>();
+
+        pcl::transformPointCloud(cloud, cloud_transformed, tf_mat);
+      } catch (const tf2::TransformException& ex) {
+        ROS_WARN("Transform failed in updateCosts: %s", ex.what());
         continue;
       }
 
@@ -146,9 +168,20 @@ void SocialLayer::updateCosts(costmap_2d::Costmap2D& master_grid,
       pcl::PointCloud<pcl::PointXYZ> cloud, cloud_transformed;
       pcl::fromROSMsg(instance.cloud, cloud);
 
+      geometry_msgs::TransformStamped tf_transform;
       try {
-        pcl_ros::transformPointCloud(global_frame_, cloud, cloud_transformed, tf_listener_);
-      } catch (tf::TransformException &ex) {
+        tf_transform = tf_->lookupTransform(
+            global_frame_, 
+            instance.cloud.header.frame_id, 
+            instance.cloud.header.stamp, 
+            ros::Duration(0.5));
+        
+        Eigen::Affine3d tf_eigen;
+        tf_eigen = tf2::transformToEigen(tf_transform);
+        Eigen::Matrix4f tf_mat = tf_eigen.matrix().cast<float>();
+
+        pcl::transformPointCloud(cloud, cloud_transformed, tf_mat);
+      } catch (const tf2::TransformException& ex) {
         ROS_WARN("Transform failed in updateCosts: %s", ex.what());
         continue;
       }

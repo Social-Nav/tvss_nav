@@ -16,7 +16,10 @@
 #include <message_filters/sync_policies/exact_time.h>
 #include <message_filters/synchronizer.h>
 
-#include <tf/transform_listener.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+
 #include <pcl_ros/point_cloud.h>
 #include <pcl_conversions/pcl_conversions.h>
 
@@ -37,7 +40,7 @@ class PointCloudSegNode
 {
 public:
     PointCloudSegNode(ros::NodeHandle& nh, ros::NodeHandle& pnh)
-        : nh_(nh), tf_listener_()
+        : nh_(nh), tf_buffer_(), tf_listener_(tf_buffer_)
     {
         pnh.param<std::string>("pointcloud_topic", pointcloud_topic_, "/camera/depth/color/points");
         pnh.param<std::string>("mask_topic", mask_topic_, "/segmented_image/mask");
@@ -61,7 +64,8 @@ public:
 
 private:
     ros::NodeHandle nh_;
-    tf::TransformListener tf_listener_;
+    tf2_ros::Buffer tf_buffer_;
+    tf2_ros::TransformListener tf_listener_;
 
     message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub_;
     message_filters::Subscriber<sensor_msgs::CompressedImage> mask_sub_;
@@ -78,11 +82,13 @@ private:
     boost::shared_ptr<Sync> sync_;
 
     cv::Mat rgb_intrinsics_;
+    cv::Mat rgb_distortion_;
     cv::Size rgb_image_size_ = cv::Size(640, 480);
 
     void handleRgbInfo(const sensor_msgs::CameraInfoConstPtr& msg)
     {
         rgb_intrinsics_ = cv::Mat(3, 3, CV_64F, (void*)msg->K.data()).clone();
+        rgb_distortion_ = cv::Mat(msg->D).clone();
         rgb_image_size_ = cv::Size(msg->width, msg->height);
     }
 
@@ -106,16 +112,18 @@ private:
             return;
         }
 
-        tf::StampedTransform tf_transform;
+        geometry_msgs::TransformStamped tf_transform;
         try {
-            tf_listener_.waitForTransform(cloud_msg->header.frame_id, mask_msg->header.frame_id, cloud_msg->header.stamp, ros::Duration(0.5));
-            tf_listener_.lookupTransform(cloud_msg->header.frame_id, mask_msg->header.frame_id, cloud_msg->header.stamp, tf_transform);
-        } catch (tf::TransformException& ex) {
-            ROS_WARN("TF transform failed: %s", ex.what());
+            tf_transform = tf_buffer_.lookupTransform(
+                cloud_msg->header.frame_id,
+                mask_msg->header.frame_id,
+                cloud_msg->header.stamp,
+                ros::Duration(0.5)  // timeout
+            );
+        } catch (tf2::TransformException& ex) {
+            ROS_WARN("TF2 transform failed: %s", ex.what());
             return;
         }
-
-        Eigen::Matrix4f transform_mat = tvss_nav::convertTfToMatrix(tf_transform);
 
         std::set<std::string> fields;
         for (const auto& field : cloud_msg->fields) fields.insert(field.name);
@@ -132,11 +140,16 @@ private:
         pcl::PointCloud<pcl::PointXYZRGB> all_points;
 
         for (int i = 0; i < cloud_msg->width * cloud_msg->height; ++i, ++iter_x, ++iter_y, ++iter_z) {
-            Eigen::Vector4f point(*iter_x, *iter_y, *iter_z, 1.0f);
-            Eigen::Vector4f point_rgb = transform_mat * point;
+            geometry_msgs::PointStamped pt_in, pt_out;
+            pt_in.header.frame_id = cloud_msg->header.frame_id;
+            pt_in.point.x = *iter_x;
+            pt_in.point.y = *iter_y;
+            pt_in.point.z = *iter_z;
+
+            tf2::doTransform(pt_in, pt_out, tf_transform);
 
             int u, v;
-            std::tie(u, v) = tvss_nav::projectToImage(point_rgb[0], point_rgb[1], point_rgb[2], rgb_intrinsics_);
+            std::tie(u, v) = tvss_nav::projectToImage(pt_out.point.x, pt_out.point.y, pt_out.point.z, rgb_intrinsics_, rgb_distortion_);
             if (u >= 0 && u < mask.cols && v >= 0 && v < mask.rows) {
                 int label = mask.at<uchar>(v, u);
                 if (label == 0 || label == 255) continue;
@@ -193,8 +206,8 @@ private:
                      const std_msgs::Header& header,
                      tvss_nav::SemanticInstanceArray& array,
                      int cost_value = 254,
-                     float inflation_radius = 3.0,
-                     float decay_rate = 1.0,
+                     float inflation_radius = 1.0,
+                     float decay_rate = 2.7685,
                      const std::string& class_name = "unknown")
     {
         tvss_nav::SemanticInstance instance;
