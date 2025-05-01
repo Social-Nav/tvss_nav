@@ -3,160 +3,127 @@
 
 import rospy
 import numpy as np
-import tf2_ros
-import tf2_sensor_msgs.tf2_sensor_msgs as tf2_sensor_msgs
-import threading
 from nav_msgs.msg import OccupancyGrid
+from tvss_nav.msg import SemanticInstanceArray
 from sensor_msgs.msg import PointCloud2
-from std_msgs.msg import Header
-from scipy.ndimage import binary_dilation
-import sensor_msgs.point_cloud2 as pc2
-from geometry_msgs.msg import PointStamped
+from tf2_sensor_msgs.tf2_sensor_msgs import do_transform_cloud
+import tf2_ros
+import tf2_py
+from scipy.ndimage import gaussian_filter
 
 
-class CostmapUpdater:
+class InstanceCostmapUpdater:
     def __init__(self):
-        rospy.init_node("costmap_updater", anonymous=False)
-        rospy.loginfo("Costmap updater node launched...")
+        rospy.init_node("instance_costmap_updater", anonymous=False)
+        rospy.loginfo("Instance Costmap Updater node launched...")
 
         # Parameters
         self.map_frame = rospy.get_param("~map_frame", "map")
+        self.output_topic = rospy.get_param("~output_topic", "/local_costmap_processed")
+        self.min_height = rospy.get_param("~min_height", 0.1)
+        self.max_height = rospy.get_param("~max_height", 10.0)
 
         while not rospy.has_param("model") and not rospy.is_shutdown():
             rospy.loginfo("Waiting for model parameter...")
             rospy.sleep(0.1)
 
         self.prefix = rospy.get_param("model", "").strip("/")
-        self.costmap_topic = rospy.get_param(
+        self.origin_costmap_topic = rospy.get_param(
             "~costmap_topic",
             f"/{self.prefix}/move_base_flex/global_costmap/costmap" if self.prefix else "/move_base_flex/global_costmap/costmap"
         )
-        print(f"Costmap topic: {self.costmap_topic}")
 
-        self.output_topic = rospy.get_param("~output_topic", "/local_costmap_processed")
-        self.cloud_prefix = rospy.get_param("~cloud_prefix", "/segmented_cloud/")
+        self.map_width = rospy.get_param("~map_width", 200)
+        self.map_height = rospy.get_param("~map_height", 200)
+        self.map_resolution = rospy.get_param("~map_resolution", 0.1)
+        self.map_origin_x = rospy.get_param("~map_origin_x", -10.0)
+        self.map_origin_y = rospy.get_param("~map_origin_y", -10.0)
 
-        self.min_height = rospy.get_param("~min_height", 0.1)
-        self.max_height = rospy.get_param("~max_height", 2.0)
-        self.min_distance = rospy.get_param("~min_distance", 0.1)
-        self.max_distance = rospy.get_param("~max_distance", 10.0)
-        self.cleanup_threshold = rospy.get_param("~cleanup_threshold", 1.0)
+        self.latest_map = None
+        self.cached_global = None
 
-        # TF + sync
+        # TF
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-        self.lock = threading.Lock()
 
         # ROS I/O
-        self.costmap_sub = rospy.Subscriber(
-            self.costmap_topic, OccupancyGrid, self.costmap_callback)
-        self.costmap_pub = rospy.Publisher(
-            self.output_topic, OccupancyGrid, queue_size=10)
+        self.instance_sub = rospy.Subscriber("/instance_array", SemanticInstanceArray, self.instance_callback)
+        self.costmap_pub = rospy.Publisher(self.output_topic, OccupancyGrid, queue_size=1)
+        self.global_sub = rospy.Subscriber(self.origin_costmap_topic, OccupancyGrid, self.global_callback)
+        rospy.Timer(rospy.Duration(1.0), self.timer_update_global)
 
-        self.segmented_cloud_subs = {}
-        self.last_cloud_time = {}
-        self.segmented_pointclouds = {}
+    def global_callback(self, msg):
+        self.cached_global = msg
 
-        self.raw_costmap = None
-        self.map_info = None
-        self.latest_costmap_time = 0
+    def timer_update_global(self, event):
+        if self.cached_global is not None:
+            self.latest_map = self.cached_global
 
-        # Periodic callbacks
-        rospy.Timer(rospy.Duration(1.0), self.update_segmented_clouds)
-        rospy.Timer(rospy.Duration(1.0), self.cleanup_old_segments)
-
-    def update_segmented_clouds(self, event):
-        all_topics = rospy.get_published_topics()
-        active_clouds = {t[0] for t in all_topics if t[0].startswith(self.cloud_prefix)}
-
-        for topic in active_clouds:
-            instance_id = topic.split("/")[-1]
-            if instance_id not in self.segmented_cloud_subs and instance_id != "0":
-                rospy.loginfo(f"Subscribing to segmented cloud: {topic}")
-                self.segmented_cloud_subs[instance_id] = rospy.Subscriber(
-                    topic, PointCloud2, self.segmented_cloud_callback, callback_args=instance_id)
-
-    def segmented_cloud_callback(self, msg, instance_id):
-        cloud_frame = msg.header.frame_id
-        timestamp = msg.header.stamp
-        self.last_cloud_time[instance_id] = timestamp.to_sec()
-
-        try:
-            transform = self.tf_buffer.lookup_transform(
-                self.map_frame, cloud_frame, timestamp, rospy.Duration(1.0))
-            transformed_cloud = tf2_sensor_msgs.do_transform_cloud(msg, transform)
-        except (tf2_ros.LookupException, tf2_ros.ExtrapolationException):
-            rospy.logwarn(f"TF transform failed: {cloud_frame} -> {self.map_frame} at {timestamp.to_sec()}")
+    def instance_callback(self, msg):
+        if self.latest_map is None:
+            rospy.logwarn_throttle(5.0, "Waiting for global map...")
             return
 
-        points = []
-        for p in pc2.read_points(transformed_cloud, field_names=("x", "y", "z"), skip_nans=True):
-            x, y, z = p[:3]
-            # distance = np.sqrt(x**2 + y**2)
-            # if distance < self.min_distance or distance > self.max_distance:
-            #     continue
-            if z < self.min_height or z > self.max_height:
+        base_grid = np.array(self.latest_map.data, dtype=np.int8).reshape(
+            self.latest_map.info.height, self.latest_map.info.width
+        )
+        grid = np.copy(base_grid).astype(np.float32)
+
+        for instance in msg.instances:
+            cloud = instance.cloud
+            try:
+                transform = self.tf_buffer.lookup_transform(
+                    self.map_frame,
+                    cloud.header.frame_id,
+                    cloud.header.stamp,
+                    rospy.Duration(1.0)
+                )
+                cloud = do_transform_cloud(cloud, transform)
+            except (tf2_ros.LookupException, tf2_ros.ExtrapolationException):
+                rospy.logwarn("TF transform failed, skipping instance.")
                 continue
-            points.append((x, y, z))
 
-        with self.lock:
-            self.segmented_pointclouds[instance_id] = points
+            resolution = self.latest_map.info.resolution
+            origin_x = self.latest_map.info.origin.position.x
+            origin_y = self.latest_map.info.origin.position.y
+            width = self.latest_map.info.width
+            height = self.latest_map.info.height
 
-        self.update_costmap()
+            mask = np.zeros((height, width), dtype=np.float32)
 
-    def cleanup_old_segments(self, event):
-        now = rospy.Time.now().to_sec()
-        expired = [inst for inst, t in self.last_cloud_time.items() if now - t > self.cleanup_threshold]
+            for i in range(0, len(cloud.data), cloud.point_step):
+                x = np.frombuffer(cloud.data[i + cloud.fields[0].offset:i + cloud.fields[0].offset + 4], dtype=np.float32)[0]
+                y = np.frombuffer(cloud.data[i + cloud.fields[1].offset:i + cloud.fields[1].offset + 4], dtype=np.float32)[0]
+                z = np.frombuffer(cloud.data[i + cloud.fields[2].offset:i + cloud.fields[2].offset + 4], dtype=np.float32)[0]
 
-        with self.lock:
-            for instance_id in expired:
-                rospy.logwarn(f"Removing stale segmented cloud: {instance_id}")
-                del self.segmented_pointclouds[instance_id]
-                del self.last_cloud_time[instance_id]
-                self.segmented_cloud_subs[instance_id].unregister()
-                del self.segmented_cloud_subs[instance_id]
+                if not (self.min_height <= z <= self.max_height):
+                    continue
 
-        self.update_costmap()
+                grid_x = int((x - origin_x) / resolution)
+                grid_y = int((y - origin_y) / resolution)
 
-    def costmap_callback(self, msg):
-        rospy.loginfo("Received costmap update.")
-        self.raw_costmap = np.array(msg.data).reshape((msg.info.height, msg.info.width))
-        self.map_info = msg.info
-        self.latest_costmap_time = msg.header.stamp
-        self.update_costmap()
+                if 0 <= grid_x < width and 0 <= grid_y < height:
+                    mask[grid_y, grid_x] = 1.0
 
-    def update_costmap(self):
-        if self.raw_costmap is None or self.map_info is None:
-            return
+            if instance.inflation_radius > 0:
+                sigma = instance.inflation_radius / resolution
+                mask = gaussian_filter(mask, sigma=sigma)
+                if instance.decay_rate > 0:
+                    mask = np.clip(mask * instance.cost_value * instance.decay_rate, 0, 254)
+                else:
+                    mask *= instance.cost_value
 
-        updated_costmap = self.raw_costmap.copy()
-        resolution = self.map_info.resolution
-        origin_x = self.map_info.origin.position.x
-        origin_y = self.map_info.origin.position.y
+                grid = np.maximum(grid, mask)
 
-        with self.lock:
-            for instance_id, points in list(self.segmented_pointclouds.items()):
-                for x, y, z in points:
-                    if z < self.min_height or z > self.max_height:
-                        continue
+        costmap = OccupancyGrid()
+        costmap.header.frame_id = self.map_frame
+        costmap.header.stamp = msg.header.stamp
+        costmap.info = self.latest_map.info
+        costmap.data = grid.astype(np.int8).flatten().tolist()
 
-                    grid_x = int((x - origin_x) / resolution)
-                    grid_y = int((y - origin_y) / resolution)
-
-                    if 0 <= grid_x < self.map_info.width and 0 <= grid_y < self.map_info.height:
-                        updated_costmap[grid_y, grid_x] = 100
-
-        updated_costmap = binary_dilation(updated_costmap, iterations=2).astype(np.int8) * 100
-
-        new_costmap = OccupancyGrid()
-        new_costmap.header.frame_id = self.map_frame
-        new_costmap.header.stamp = self.latest_costmap_time
-        new_costmap.info = self.map_info
-        new_costmap.data = updated_costmap.flatten().tolist()
-
-        self.costmap_pub.publish(new_costmap)
+        self.costmap_pub.publish(costmap)
 
 
 if __name__ == "__main__":
-    node = CostmapUpdater()
+    node = InstanceCostmapUpdater()
     rospy.spin()

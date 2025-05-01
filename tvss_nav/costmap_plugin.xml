@@ -1,0 +1,9 @@
+<library path="lib/libsocial_layer">
+  <class name="tvss_nav::SocialLayer"
+         type="tvss_nav::SocialLayer"
+         base_class_type="costmap_2d::Layer">
+    <description>
+      A social-aware costmap layer from tvss_nav.
+    </description>
+  </class>
+</library>

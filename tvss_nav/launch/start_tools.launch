@@ -9,7 +9,7 @@
   </node> -->
 
   <!-- pointcloud_seg -->
-  <include file="$(find pointcloud_seg)/launch/pointcloud_seg.launch">
+  <include file="$(find tvss_nav)/launch/pointcloud_seg.launch">
     <arg name="pointcloud_topic" value="/camera/depth/color/points" />
     <arg name="mask_topic" value="/segmented_image/mask" />
     <arg name="rgb_info_topic" value="/camera/color/camera_info" />

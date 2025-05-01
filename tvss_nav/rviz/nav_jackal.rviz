@@ -20,7 +20,7 @@ Panels:
   - Class: rviz/Time
     Name: Time
     SyncMode: 0
-    SyncSource: Segmented Cloud
+    SyncSource: Depth
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -257,12 +257,12 @@ Visualization Manager:
       Class: rviz/Map
       Color Scheme: map
       Draw Behind: false
-      Enabled: false
+      Enabled: true
       Name: jackal Global Costmap
       Topic: /jackal/move_base_flex/global_costmap/costmap
       Unreliable: false
       Use Timestamp: false
-      Value: false
+      Value: true
     - Alpha: 1
       Buffer Length: 1
       Class: rviz/Path
@@ -411,13 +411,13 @@ Visualization Manager:
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
-      Enabled: false
+      Enabled: true
       Marker Topic: /dynamic_obstacles/dynamic_markers
       Name: DynamicObstacles
       Namespaces:
-        {}
+        /jackal/dynamic_obstacle_detector: true
       Queue Size: 100
-      Value: false
+      Value: true
     - Alpha: 1
       Buffer Length: 1
       Class: rviz/Path
@@ -635,8 +635,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 1.6862895488739014
-        Min Value: -3.3736228942871094e-05
+        Max Value: 1.6808927059173584
+        Min Value: -4.279613494873047e-05
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -648,14 +648,14 @@ Visualization Manager:
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Min Color: 0; 0; 0
-      Name: Segmented Cloud
+      Name: Masked Cloud
       Position Transformer: XYZ
       Queue Size: 10
       Selectable: true
       Size (Pixels): 3
-      Size (m): 0.029999999329447746
+      Size (m): 0.05000000074505806
       Style: Flat Squares
-      Topic: /segmented_cloud/0
+      Topic: /masked_cloud
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -664,12 +664,12 @@ Visualization Manager:
       Class: rviz/Map
       Color Scheme: map
       Draw Behind: false
-      Enabled: true
+      Enabled: false
       Name: Semantic Costmap
       Topic: /local_costmap_processed
       Unreliable: false
       Use Timestamp: false
-      Value: true
+      Value: false
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -698,7 +698,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rtabmap_rviz_plugins/OrbitOriented
-      Distance: 29.00324821472168
+      Distance: 45.895423889160156
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -706,17 +706,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 15.249333381652832
-        Y: 11.573829650878906
-        Z: 0.3448466658592224
+        X: 1.4364346265792847
+        Y: 7.182139873504639
+        Z: 5.749247074127197
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.7847980260848999
+      Pitch: 0.7247980237007141
       Target Frame: <Fixed Frame>
-      Yaw: 6.270420074462891
+      Yaw: 1.572234034538269
     Saved: ~
 Window Geometry:
   Depth:
