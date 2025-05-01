@@ -342,7 +342,7 @@ bool SFMController::computeAction(geometry_msgs::Twist &cmd_vel) {
   }
 
   publishForces();
-  ROS_WARN("cx: %.2f, tx%.2f", robot_.linearVelocity, cmd_vel.linear.x);
+  // ROS_WARN("cx: %.2f, tx%.2f", robot_.linearVelocity, cmd_vel.linear.x);
   if (!collision_checker_->checkCommand(
           robot_.linearVelocity, 0.0, robot_.angularVelocity, cmd_vel.linear.x,
           0.0, cmd_vel.angular.z, 0.11)) {
