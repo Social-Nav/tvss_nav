@@ -11,7 +11,6 @@ from sam2.sam2_image_predictor import SAM2ImagePredictor
 from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection
 from utils.mask_dictionary_model import MaskDictionaryModel, ObjectInfo
 import time
-import threading
 import base64
 import roslibpy
 from threading import Lock
@@ -232,18 +231,6 @@ def visualize_detections(frame_resized, out_obj_ids, out_mask_logits, id_to_obje
     overlay = mask_annotator.annotate(scene=overlay, detections=detections)
     return overlay
 
-# Function moved outside of main
-def input_thread_function(callback_fn):
-    """
-    Thread function that reads text input from user.
-    """
-    while True:
-        text = input("Enter text prompt ('q' to quit): ")
-        if text.lower() == 'q':
-            print("Exiting input thread")
-            break
-        callback_fn(text)
-
 #####################
 # Main function using exposed functions with full functionality
 #####################
@@ -258,6 +245,7 @@ def main():
     IMAGE_MSG_TYPE = "CompressedImage"  # "CompressedImage" or "Image"
     # IMAGE_MSG_TYPE = "Image"
     RESET_TOPIC = '/scenario_reset'
+    TEXT_INPUT_TOPIC = '/text_input'  # Topic for receiving text prompts
 
     ENABLE_IMAGE_PUBLISH = True
     DEBUG_MODE = False
@@ -265,7 +253,6 @@ def main():
     WIDTH = 640
 
     # Model and checkpoint settings
-
     SAM2_CHECKPOINT = "./checkpoints/sam2.1_hiera_tiny.pt"
     MODEL_CFG = "configs/sam2.1/sam2.1_hiera_t.yaml"
     MODEL_ID = "IDEA-Research/grounding-dino-base"
@@ -276,27 +263,7 @@ def main():
 
     #####################
     # State variables (now local to main)
-    #####################def main():
     #####################
-    # Configurable Parameters
-    #####################
-    # INPUT_IMAGE_TOPIC = '/robot_firstperson_rgb/compressed'
-    # INPUT_IMAGE_TOPIC = '/camera/color/image_raw'
-    INPUT_IMAGE_TOPIC = '/camera/color/image_raw/compressed'
-    OUTPUT_IMAGE_TOPIC = '/segmented_image'
-    IMAGE_MSG_TYPE = "CompressedImage"  # "CompressedImage" or "Image"
-    # IMAGE_MSG_TYPE = "Image"
-    RESET_TOPIC = '/scenario_reset'
-
-    ENABLE_IMAGE_PUBLISH = True
-    DEBUG_MODE = False
-    HEIGHT = 480
-    WIDTH = 640
-
-    # Model and checkpoint settings
-    SAM2_CHECKPOINT = "./checkpoints/sam2.1_hiera_tiny.pt"
-    MODEL_CFG = "configs/sam2.1/sam2.1_hiera_t.yaml"
-    MODEL_ID = "IDEA-Research/grounding-dino-base"
     global_msg = None
     msg_lock = Lock()
     text_prompt = None
@@ -326,10 +293,12 @@ def main():
     #####################
     # Handle text input
     #####################
-    def handle_text_input(text):
+    def handle_text_input(msg):
         nonlocal text_prompt, restart_detection
-        text_prompt = text
+        text_prompt = msg['data']  # Extract string from ROS message
         restart_detection = True
+        if DEBUG_MODE:
+            print(f"\n[INFO] Received text prompt: {text_prompt}")
 
     def task_reset_signal(msg):
         nonlocal global_reset_signal
@@ -341,6 +310,7 @@ def main():
     ros = setup_ros_bridge()
     rgb_msg_type = 'sensor_msgs/CompressedImage' if IMAGE_MSG_TYPE=="CompressedImage" else 'sensor_msgs/Image'
     rgb_subscriber = create_subscriber(ros, INPUT_IMAGE_TOPIC, rgb_msg_type, image_callback)
+    text_subscriber = create_subscriber(ros, TEXT_INPUT_TOPIC, 'std_msgs/String', handle_text_input)
     reset_subscriber = create_subscriber(ros, RESET_TOPIC, 'std_msgs/Int16', task_reset_signal)
     
     publisher_compressed = create_publisher(ros, OUTPUT_IMAGE_TOPIC + '/compressed', 'sensor_msgs/CompressedImage')
@@ -355,11 +325,6 @@ def main():
     if torch.cuda.get_device_properties(0).major >= 8:
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
-
-    # Start the input thread
-    input_t = threading.Thread(target=input_thread_function, args=(handle_text_input,))
-    input_t.daemon = True
-    input_t.start()
 
     camera_predictor = build_sam2_camera_predictor(MODEL_CFG, SAM2_CHECKPOINT)
     sam2_image_model = build_sam2(MODEL_CFG, SAM2_CHECKPOINT, device=device)
@@ -377,8 +342,6 @@ def main():
     last_detect_time = time.time()
 
     initialized = False
-
-    # text_prompt = "person"
 
     try:
         while True:
@@ -497,7 +460,7 @@ def publish_mask(mask_publisher, frame_resized, out_obj_ids, out_mask_logits, ti
     """ 
     Publish a Mask image with instance IDs.
 
-    - The “mask“ values are no longer 0/255, but instead instance_id itself.
+    - The "mask" values are no longer 0/255, but instead instance_id itself.
     - Uses PNG compression to reduce bandwidth.
     - Adds erosion to clean mask edges.
     """
@@ -519,7 +482,6 @@ def publish_mask(mask_publisher, frame_resized, out_obj_ids, out_mask_logits, ti
     mask_msg = create_compressed_image_message(all_mask, format='png', quality=3, timestamp=timestamp, frame_link=frame_link)
 
     mask_publisher.publish(roslibpy.Message(mask_msg))
-
 
 if __name__ == "__main__":
     try:

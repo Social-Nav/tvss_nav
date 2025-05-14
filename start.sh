@@ -54,6 +54,7 @@ gnome-terminal -- bash -c "cd ./tmux/arena_sfm/ && tmuxinator; exec bash" & get_
 gnome-terminal -- bash -c "cd ./tmux/semantic_tool/ && tmuxinator; exec bash" & get_new_pts
 # gnome-terminal -- bash -c "source ~/anaconda3/etc/profile.d/conda.sh && conda activate gsam2 && cd ./tvss_nav/scripts/tvss_nav/tools/grounded_sam2 && python grounded_sam2_ros.py; exec bash" & get_new_pts
 gnome-terminal -- bash -c "source ~/mambaforge/etc/profile.d/conda.sh && conda activate gsam2 && cd ./tvss_nav/scripts/tvss_nav/tools/grounded_sam2 && python grounded_sam2_ros.py; exec bash" & get_new_pts
+gnome-terminal -- bash -c "cd ./tmux/vlm_tools/ && tmuxinator; exec bash" & get_new_pts
 # -------- Exit handling --------
 
 echo "Press 'q' to quit, close all spawned terminals, and kill tmux session if running (or press Ctrl+C)..."

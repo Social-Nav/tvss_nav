@@ -45,7 +45,12 @@ class VLM:
                 print("✓ Connected to ROS")
             else:
                 raise ConnectionError("Failed to connect to ROS")
-        
+            
+        self.text_publisher = roslibpy.Topic(
+            self.ros,
+            '/text_input',
+            'std_msgs/String'
+        )
         # Load tools from YAML
         tools_path = os.path.join(os.path.dirname(__file__), 'tools.yaml')
         with open(tools_path, 'r') as f:
@@ -166,7 +171,7 @@ class VLM:
             messages.append({"role": "user", "content": self.initial_task})
         messages.extend(self.message_history)
         image_uri = f"data:image/jpeg;base64,{image_base64}"
-        text = user_query if user_query else "Now the image is 10s after what you last seen. Based on your observation, segment all the important social entities if any and update sfm parameters if necessary."
+        text = user_query if user_query else "Now the image is 10s after what you last seen. Based on your observation, call tools to segment all the important social entities if any and update sfm parameters if necessary."
         user_message = {
             "role": "user",
             "content": [
@@ -214,6 +219,8 @@ class VLM:
                             objects = params['object_names'].split('.')
                             msg = f"Segmenting: {', '.join(objects)}"
                             print(msg)
+                            text_msg = {'data': params['object_names'].strip()}
+                            self.text_publisher.publish(roslibpy.Message(text_msg))
                             # Here you can add the actual segmentation logic
                             # For example, calling your ROS service or handling the segmentation
                         except json.JSONDecodeError as e:
