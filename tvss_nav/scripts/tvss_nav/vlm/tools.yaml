@@ -5,12 +5,8 @@ tools:
       description: >-
         Update a single SFM (Social Force Model) parameter using dynamic reconfigure via rosbridge.
         Valid parameters (under /rto/move_base_flex/SFMControllerROS/):
-        - max_lin_acc: Maximum acceleration in translation (m/s^2)
-        - max_rot_acc: Maximum acceleration in rotation (rad/s^2)
         - max_lin_vel: Maximum linear velocity (m/s)
-        - min_lin_vel: Minimum linear velocity (m/s)
         - max_rot_vel: Maximum angular velocity (rad/s)
-        - min_rot_vel: Minimum angular velocity (rad/s)
         - sfm_goal_weight: Weight of the attraction force to the goal
         - sfm_obstacle_weight: Weight of the repulsive force of the obstacles
         - sfm_people_weight: Weight of the repulsive force of the pedestrians

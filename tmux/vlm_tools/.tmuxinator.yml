@@ -1,0 +1,11 @@
+name: vlm-tools
+root: .
+
+windows:
+  - vlm:
+      layout: tiled
+      panes:
+        - vlm:
+          - source ~/mambaforge/etc/profile.d/conda.sh && conda activate gsam2 && cd ../../tvss_nav/scripts/tvss_nav && python -m vlm.vlm
+        - gsam2:
+          - source ~/mambaforge/etc/profile.d/conda.sh && conda activate gsam2 && cd ../../tvss_nav/scripts/tvss_nav/tools/grounded_sam2 && python grounded_sam2_ros_topic.py
