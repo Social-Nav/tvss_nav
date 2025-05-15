@@ -268,7 +268,7 @@ class SAM2Base(torch.nn.Module):
         if self.use_trt:
             del self.image_encoder
             with trt.Logger(trt.Logger.ERROR) as logger, trt.Runtime(logger) as runtime:
-                engine_path = f"{os.environ['PWD']}/tensorrt/trt/hiera_t_image_encoder.trt"
+                engine_path = f"{os.environ['PWD']}/tensorrt/trt/hiera_l_image_encoder.trt"
                 # print(f"Loading TensorRT engine from: {engine_path}")
                 with open(engine_path, 'rb') as f:
                     engine_bytes = f.read()

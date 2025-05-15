@@ -266,8 +266,8 @@ def main():
 
     # Model and checkpoint settings
 
-    SAM2_CHECKPOINT = "./checkpoints/sam2.1_hiera_tiny.pt"
-    MODEL_CFG = "configs/sam2.1/sam2.1_hiera_t.yaml"
+    SAM2_CHECKPOINT = "./checkpoints/sam2.1_hiera_large.pt"
+    MODEL_CFG = "configs/sam2.1/sam2.1_hiera_l.yaml"
     MODEL_ID = "IDEA-Research/grounding-dino-base"
 
     cfg = OmegaConf.load("sam2/" + MODEL_CFG)
@@ -276,27 +276,7 @@ def main():
 
     #####################
     # State variables (now local to main)
-    #####################def main():
     #####################
-    # Configurable Parameters
-    #####################
-    # INPUT_IMAGE_TOPIC = '/robot_firstperson_rgb/compressed'
-    # INPUT_IMAGE_TOPIC = '/camera/color/image_raw'
-    INPUT_IMAGE_TOPIC = '/camera/color/image_raw/compressed'
-    OUTPUT_IMAGE_TOPIC = '/segmented_image'
-    IMAGE_MSG_TYPE = "CompressedImage"  # "CompressedImage" or "Image"
-    # IMAGE_MSG_TYPE = "Image"
-    RESET_TOPIC = '/scenario_reset'
-
-    ENABLE_IMAGE_PUBLISH = True
-    DEBUG_MODE = False
-    HEIGHT = 480
-    WIDTH = 640
-
-    # Model and checkpoint settings
-    SAM2_CHECKPOINT = "./checkpoints/sam2.1_hiera_large.pt"
-    MODEL_CFG = "configs/sam2.1/sam2.1_hiera_l.yaml"
-    MODEL_ID = "IDEA-Research/grounding-dino-base"
     global_msg = None
     msg_lock = Lock()
     text_prompt = None

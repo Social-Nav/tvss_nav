@@ -56,8 +56,11 @@ class VLM:
         with open(config_path, 'r') as f:
             self.config = json.load(f)
         
+        self.openai_api_key = os.getenv('OPENAI_API_KEY')
+        if not self.openai_api_key:
+            raise ValueError("OPENAI_API_KEY environment variable not set")
         # Initialize OpenAI client
-        self.client = OpenAI(api_key=self.config['api_key'])
+        self.client = OpenAI(api_key=self.openai_api_key)
         
         # Load system prompt
         prompt_path = os.path.join(os.path.dirname(__file__), 'system_prompt.txt')
@@ -233,7 +236,7 @@ class VLM:
                         except Exception as e:
                             if self.debug:
                                 print(f"Failed to update SFM parameter: {str(e)}")
-
+        
         # Update message history
         current_response = {"role": "assistant", "content": assistant_content}
         self.message_history.append(user_message)

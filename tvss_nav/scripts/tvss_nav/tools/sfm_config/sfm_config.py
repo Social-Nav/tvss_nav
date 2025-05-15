@@ -45,7 +45,7 @@ def update_sfm_param(param_name: str, value: float, ros_client: roslibpy.Ros = N
         
         # Create service client for dynamic reconfigure
         service = roslibpy.Service(client, 
-                                 '/rto/move_base_flex/SFMControllerROS/set_parameters',
+                                 '/jackal/move_base_flex/SFMControllerROS/set_parameters',
                                  'dynamic_reconfigure/Reconfigure')
         
         # Prepare request
