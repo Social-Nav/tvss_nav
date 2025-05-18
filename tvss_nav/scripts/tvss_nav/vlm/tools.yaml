@@ -4,7 +4,7 @@ tools:
       name: update_sfm_param
       description: >-
         Update a single SFM (Social Force Model) parameter using dynamic reconfigure via rosbridge.
-        Valid parameters (under /rto/move_base_flex/SFMControllerROS/):
+        Valid parameters (under /jackal/move_base_flex/SFMControllerROS/):
         - max_lin_vel: Maximum linear velocity (m/s)
         - max_rot_vel: Maximum angular velocity (rad/s)
         - sfm_goal_weight: Weight of the attraction force to the goal

@@ -11,6 +11,7 @@ import roslibpy
 import re
 from openai import OpenAI
 from tools.sfm_config.sfm_config import update_sfm_param
+from utils.json_parser import extract_json_from_markdown, parse_tool_calls
 
 class VLM:
     def __init__(self, debug=False, update_period=10.0):
@@ -211,39 +212,68 @@ class VLM:
         if self.debug:
             print(f"Tokens used - Prompt: {prompt_tokens}, Completion: {completion_tokens}, Total: {total_tokens}")
 
-        # Process any tool calls from the response
-        if hasattr(response.choices[0].message, "tool_calls"):
-            tool_calls = response.choices[0].message.tool_calls
-            if tool_calls:
-                for tool_call in tool_calls:
-                    if tool_call.function.name == "segment_social_entities_from_name":
-                        try:
-                            params = json.loads(tool_call.function.arguments)
-                            objects = params['object_names'].split('.')
-                            msg = f"Segmenting: {', '.join(objects)}"
-                            print(msg)
-                            text_msg = {'data': params['object_names'].strip()}
-                            self.text_publisher.publish(roslibpy.Message(text_msg))
-                            # Here you can add the actual segmentation logic
-                            # For example, calling your ROS service or handling the segmentation
-                        except json.JSONDecodeError as e:
-                            if self.debug:
-                                print(f"Failed to parse tool arguments: {str(e)}")
-                    elif tool_call.function.name == "update_sfm_param":
-                        try:
-                            params = json.loads(tool_call.function.arguments)
-                            result = self.update_sfm_param(
-                                params['param_name'],
-                                float(params['value'])
-                            )
-                            print(result)
-                        except json.JSONDecodeError as e:
-                            if self.debug:
-                                print(f"Failed to parse tool arguments: {str(e)}")
-                        except Exception as e:
-                            if self.debug:
-                                print(f"Failed to update SFM parameter: {str(e)}")
+        # # Process any tool calls from the response
+        # if hasattr(response.choices[0].message, "tool_calls"):
+        #     tool_calls = response.choices[0].message.tool_calls
+        #     if tool_calls:
+        #         for tool_call in tool_calls:
+        #             if tool_call.function.name == "segment_social_entities_from_name":
+        #                 try:
+        #                     params = json.loads(tool_call.function.arguments)
+        #                     objects = params['object_names'].split('.')
+        #                     msg = f"Segmenting: {', '.join(objects)}"
+        #                     print(msg)
+        #                     text_msg = {'data': params['object_names'].strip()}
+        #                     self.text_publisher.publish(roslibpy.Message(text_msg))
+        #                     # Here you can add the actual segmentation logic
+        #                     # For example, calling your ROS service or handling the segmentation
+        #                 except json.JSONDecodeError as e:
+        #                     if self.debug:
+        #                         print(f"Failed to parse tool arguments: {str(e)}")
+        #             elif tool_call.function.name == "update_sfm_param":
+        #                 try:
+        #                     params = json.loads(tool_call.function.arguments)
+        #                     result = self.update_sfm_param(
+        #                         params['param_name'],
+        #                         float(params['value'])
+        #                     )
+        #                     print(result)
+        #                 except json.JSONDecodeError as e:
+        #                     if self.debug:
+        #                         print(f"Failed to parse tool arguments: {str(e)}")
+        #                 except Exception as e:
+        #                     if self.debug:
+        #                         print(f"Failed to update SFM parameter: {str(e)}")
         
+        # Extract JSON from markdown
+        json_str = extract_json_from_markdown(assistant_content)
+        # print("json_str: ", json_str)
+        # Parse tool calls
+        tool_calls = parse_tool_calls(json_str)
+        if tool_calls:
+            try:
+                for tool_call in tool_calls:
+                    if tool_call['tool'] == "segment_social_entities_from_name":
+                        params = tool_call['args']
+                        objects = params['object_names'].split('.')
+                        msg = f"Segmenting: {', '.join(objects)}"
+                        print(msg)
+                        text_msg = {'data': params['object_names'].strip()}
+                        self.text_publisher.publish(roslibpy.Message(text_msg))
+                        # Here you can add the actual segmentation logic
+                        # For example, calling your ROS service or handling the segmentation
+                    elif tool_call['tool'] == "update_sfm_param":
+                        params = tool_call['args']
+                        result = self.update_sfm_param(
+                            params['param_name'],
+                            float(params['value'])
+                        )
+                        print(result)
+
+            except Exception as e:
+                if self.debug:
+                    print(f"Failed to process tool calls: {str(e)}")
+
         # Update message history
         current_response = {"role": "assistant", "content": assistant_content}
         self.message_history.append(user_message)
@@ -261,7 +291,8 @@ class VLM:
                 if self.paused:
                     if not self.received_first_image:
                         continue
-                    user_query = input("\nQuery: ").strip()
+                    # user_query = input("\nQuery: ").strip()
+                    user_query = self.get_input("\nQuery: ", timeout=100000)
                     if user_query.lower() == 'q':
                         print("\nRestarting reasoning…")
                         self.message_history.clear()

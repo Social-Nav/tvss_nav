@@ -253,9 +253,13 @@ def main():
     WIDTH = 640
 
     # Model and checkpoint settings
-    SAM2_CHECKPOINT = "./checkpoints/sam2.1_hiera_tiny.pt"
-    MODEL_CFG = "configs/sam2.1/sam2.1_hiera_t.yaml"
+    SAM2_CHECKPOINT = "./checkpoints/sam2.1_hiera_large.pt"
+    MODEL_CFG = "configs/sam2.1/sam2.1_hiera_l.yaml"
     MODEL_ID = "IDEA-Research/grounding-dino-base"
+
+    model_name = os.path.splitext(os.path.basename(MODEL_CFG))[0]  # sam2.1_hiera_large
+    engine_name = model_name.replace("sam2.1_", "") + "_image_encoder.trt"
+    os.environ["SAM2_TRT_ENGINE_PATH"] = os.path.join(os.environ["PWD"], "tensorrt", "trt", engine_name)
 
     cfg = OmegaConf.load("sam2/" + MODEL_CFG)
     use_trt = cfg.model.get("use_trt", None)
@@ -338,6 +342,7 @@ def main():
 
     rate = 0.1
     detection_timeout = 3
+    # detection_timeout = np.inf
 
     last_detect_time = time.time()
 

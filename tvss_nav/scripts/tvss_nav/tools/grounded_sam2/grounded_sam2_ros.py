@@ -270,6 +270,10 @@ def main():
     MODEL_CFG = "configs/sam2.1/sam2.1_hiera_l.yaml"
     MODEL_ID = "IDEA-Research/grounding-dino-base"
 
+    model_name = os.path.splitext(os.path.basename(MODEL_CFG))[0]  # sam2.1_hiera_large
+    engine_name = model_name.replace("sam2.1_", "") + "_image_encoder.trt"
+    os.environ["SAM2_TRT_ENGINE_PATH"] = os.path.join(os.environ["PWD"], "tensorrt", "trt", engine_name)
+
     cfg = OmegaConf.load("sam2/" + MODEL_CFG)
     use_trt = cfg.model.get("use_trt", None)
     print(f"[Config] use_trt: {use_trt}")
