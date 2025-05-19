@@ -32,6 +32,55 @@ At the beginning of the task, you will be given a task description in text, such
 - Please use no more than 2 words to describe the entities, for example, use "wheelchair person" instead of "person in a wheelchair".
 - You should only segment the most important entities, which means the number of these entities should be small. If you notice there are more than 5 objects of the same type, do not segment them. e.g. if you see a group of 10 people, you should not call the segmentation tool using prompt "person". However, if there are specific people in this group which you need to avoid, use their class name like "doctor", "child" etc.
 
+#### Additional Parameters for Each Segmented Object  
+Once an object is segmented, the system assigns navigation cost to it. You may optionally provide the following parameters (or leave them out to use defaults):
+
+- `cost_value`: How strongly the robot avoids the object.
+  - Default: 254  
+  - Range: [0, 254] (higher = stronger avoidance)
+
+- `inflation_radius`: How far around the object the avoidance extends  
+  - Default: 1.0 (in meters)  
+  - Range: [0.0, 5.0]
+
+- `decay_rate`: How quickly the cost falls off with distance  
+  - Default: 2.7685
+  - Range: [0.0, 5.0] (higher = faster drop-off)
+
+The cost value is inflated by the inflation radius, and the cost decays with distance according to the decay rate. The cost at a Euclidean distance `dist` from the object is calculated as:
+
+```cpp
+int inflated = std::round(base_cost * exp(-decay * dist));
+```
+
+Where `base_cost` is the cost value you set, `decay` is the decay rate, and `dist` is the Euclidean distance from the object. 
+For most cases, we want the cost value at "dist == inflation_radius" is nearly zero, the we can determine "decay_rate" from the formula above.
+
+#### Costmap Cost Value Semantics
+
+The default free space cost is `100` instead of `0`, then **lower values indicate more preferred areas**, and higher values indicate avoidance or obstacles. The following table reflects this logic:
+
+| Value(s)  | Meaning                                         | Recommended for Manual Use?                   |
+|-----------|--------------------------------------------------|-----------------------------------------------|
+| `0–99`    | Preferred zones (e.g., guidance lines, safe paths) | ✅ Yes (used for **soft** attraction or guidance) |
+| `100`     | Normal free space                                | ✅ Yes (default traversable area)             |
+| `101–127` | Slight penalty zones (soft avoidance)            | ✅ Yes                                        |
+| `128`     | Inscribed inflated obstacle (near obstacle edge) | ❌ No (automatically computed by costmap)     |
+| `129–252` | Strong penalty zones or reserved range           | ⚠️ Not recommended unless deliberate          |
+| `253`     | Unknown area (e.g., sensor blind spot)           | ❌ No                                         |
+| `254`     | Lethal obstacle (impassable area)                | ✅ Yes (for static/dynamic objects to avoid)  |
+| `255`     | Uninitialized or undefined                       | ❌ No                                         |
+
+> **Note**: If you want the robot to **prefer passing over a specific region** (like a yellow line or crosswalk), assign it a cost **lower than 100**, such as `30` or `0`. The planner will treat it as an attractor in the cost landscape.
+
+**Important:** For every object listed in `object_names`, you **must explicitly provide** its corresponding cost configuration under the `cost_attributes` field. Each object must include:
+
+- `cost_value` (uint8)
+- `inflation_radius` (float, in meters)
+- `decay_rate` (float)
+
+This is required for consistent and accurate processing on the robot side. Do not omit any of the three fields for any segmented object.
+
 ### `update_sfm_param`
 - This tools allows you to adjust the following parameters of the social force local planner:
 - `max_lin_vel`: Maximum linear velocity (m/s)
@@ -74,7 +123,19 @@ Here is an example:
     {
       "tool": "segment_social_entities_from_name",
       "args": {
-        "object_names": "wheelchair person.child"
+        "object_names": "wheelchair person.child",
+        "cost_attributes": {
+          "wheelchair": {
+            "cost_value": 254,
+            "inflation_radius": 1.0,
+            "decay_rate": 2.7685
+          },
+          "child": {
+            "cost_value": 230,
+            "inflation_radius": 1.5,
+            "decay_rate": 3.0
+          }
+        }
       }
     },
     {

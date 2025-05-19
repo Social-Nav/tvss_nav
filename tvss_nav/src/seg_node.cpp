@@ -1,4 +1,4 @@
-// seg_node.cpp (parametrized topics + auto format detection)
+// seg_node.cpp (with cost attributes, simplified fallback logic)
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/Image.h>
@@ -7,6 +7,7 @@
 #include <sensor_msgs/image_encodings.h>
 #include <sensor_msgs/point_cloud2_iterator.h>
 #include <std_msgs/Header.h>
+#include <std_msgs/String.h>
 
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
@@ -22,11 +23,11 @@
 
 #include <pcl_ros/point_cloud.h>
 #include <pcl_conversions/pcl_conversions.h>
-
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
 
+#include <tvss_nav/StringWithHeader.h>
 #include <tvss_nav/SemanticInstance.h>
 #include <tvss_nav/SemanticInstanceArray.h>
 #include <tvss_nav/utils/geometry_utils.h>
@@ -35,9 +36,15 @@
 #include <vector>
 #include <string>
 #include <set>
+#include <jsoncpp/json/json.h>
 
-class PointCloudSegNode
-{
+struct CostAttributes {
+    int cost_value = 254;
+    float inflation_radius = 1.0;
+    float decay_rate = 2.7685;
+};
+
+class PointCloudSegNode {
 public:
     PointCloudSegNode(ros::NodeHandle& nh, ros::NodeHandle& pnh)
         : nh_(nh), tf_buffer_(), tf_listener_(tf_buffer_)
@@ -45,18 +52,20 @@ public:
         pnh.param<std::string>("pointcloud_topic", pointcloud_topic_, "/camera/depth/color/points");
         pnh.param<std::string>("mask_topic", mask_topic_, "/segmented_image/mask");
         pnh.param<std::string>("rgb_info_topic", rgb_info_topic_, "/camera/color/camera_info");
-
         pnh.param<std::string>("semantic_instances_topic", instance_array_topic_, "/instance_array");
         pnh.param<std::string>("visual_cloud_topic", visual_cloud_topic_, "/masked_cloud");
-
+        pnh.param<std::string>("inst_class_topic", instance_class_topic_, "/instance_class_dict");
+        pnh.param<std::string>("cost_attribute", cost_attribute_topic_, "/cost_attributes");
         pnh.param<double>("voxel_leaf_size", voxel_leaf_size_, 0.1);
 
         cloud_sub_.subscribe(nh_, pointcloud_topic_, 1);
         mask_sub_.subscribe(nh_, mask_topic_, 1);
+        instance_class_sub_.subscribe(nh_, instance_class_topic_, 1);
         rgb_info_sub_ = nh_.subscribe(rgb_info_topic_, 1, &PointCloudSegNode::handleRgbInfo, this);
+        cost_attr_sub_ = nh_.subscribe(cost_attribute_topic_, 1, &PointCloudSegNode::handleCostAttr, this);
 
-        sync_.reset(new Sync(ExactSyncPolicy(10), cloud_sub_, mask_sub_));
-        sync_->registerCallback(boost::bind(&PointCloudSegNode::processData, this, _1, _2));
+        sync_.reset(new Sync(ExactSyncPolicy(10), cloud_sub_, mask_sub_, instance_class_sub_));
+        sync_->registerCallback(boost::bind(&PointCloudSegNode::processData, this, _1, _2, _3));
 
         semantic_pub_ = nh_.advertise<tvss_nav::SemanticInstanceArray>(instance_array_topic_, 1);
         visual_cloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>(visual_cloud_topic_, 1);
@@ -69,15 +78,18 @@ private:
 
     message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub_;
     message_filters::Subscriber<sensor_msgs::CompressedImage> mask_sub_;
+    message_filters::Subscriber<tvss_nav::StringWithHeader> instance_class_sub_;
     ros::Subscriber rgb_info_sub_;
+    ros::Subscriber cost_attr_sub_;
     ros::Publisher semantic_pub_;
     ros::Publisher visual_cloud_pub_;
 
     std::string pointcloud_topic_, mask_topic_, rgb_info_topic_;
     std::string instance_array_topic_, visual_cloud_topic_;
+    std::string instance_class_topic_, cost_attribute_topic_;
     double voxel_leaf_size_;
 
-    typedef message_filters::sync_policies::ExactTime<sensor_msgs::PointCloud2, sensor_msgs::CompressedImage> ExactSyncPolicy;
+    typedef message_filters::sync_policies::ExactTime<sensor_msgs::PointCloud2, sensor_msgs::CompressedImage, tvss_nav::StringWithHeader> ExactSyncPolicy;
     typedef message_filters::Synchronizer<ExactSyncPolicy> Sync;
     boost::shared_ptr<Sync> sync_;
 
@@ -85,16 +97,56 @@ private:
     cv::Mat rgb_distortion_;
     cv::Size rgb_image_size_ = cv::Size(640, 480);
 
-    void handleRgbInfo(const sensor_msgs::CameraInfoConstPtr& msg)
-    {
+    std::unordered_map<int, std::string> label_to_class_map_;
+    std::unordered_map<std::string, CostAttributes> cost_attr_map_;
+
+    void handleRgbInfo(const sensor_msgs::CameraInfoConstPtr& msg) {
         rgb_intrinsics_ = cv::Mat(3, 3, CV_64F, (void*)msg->K.data()).clone();
         rgb_distortion_ = cv::Mat(msg->D).clone();
         rgb_image_size_ = cv::Size(msg->width, msg->height);
     }
 
+    void handleCostAttr(const std_msgs::StringConstPtr& msg) {
+        cost_attr_map_.clear();
+        Json::Reader reader;
+        Json::Value root;
+        if (!reader.parse(msg->data, root)) {
+            ROS_ERROR("Failed to parse cost attributes JSON.");
+            return;
+        }
+        
+        const auto& attrs = root;
+
+        Json::FastWriter writer;
+        std::string json_str = writer.write(root);
+        ROS_INFO_STREAM("Received raw JSON for cost attributes:\n" << json_str);
+
+        for (const auto& class_name : attrs.getMemberNames()) {
+            const Json::Value& attr = attrs[class_name];
+            CostAttributes parsed;
+            parsed.cost_value = attr.get("cost_value", 254).asInt();
+            parsed.inflation_radius = attr.get("inflation_radius", 1.0).asFloat();
+            parsed.decay_rate = attr.get("decay_rate", 2.7685).asFloat();
+            cost_attr_map_[class_name] = parsed;
+        }
+    }
+
     void processData(const sensor_msgs::PointCloud2ConstPtr& cloud_msg,
-                     const sensor_msgs::CompressedImageConstPtr& mask_msg)
-    {
+                     const sensor_msgs::CompressedImageConstPtr& mask_msg,
+                     const tvss_nav::StringWithHeaderConstPtr& class_msg) {
+        label_to_class_map_.clear();
+        Json::Reader reader;
+        Json::Value root;
+        if (!reader.parse(class_msg->str, root)) {
+            ROS_WARN("Failed to parse instance_class_dict JSON");
+        } else {
+            for (const auto& label_str : root.getMemberNames()) {
+                int label = std::stoi(label_str);
+                std::string class_name = root[label_str].asString();
+                label_to_class_map_[label] = class_name;
+            }
+        }
+
         if (rgb_intrinsics_.empty()) {
             ROS_WARN("Waiting for camera intrinsics...");
             return;
@@ -107,8 +159,7 @@ private:
         }
 
         if (mask.cols != rgb_image_size_.width || mask.rows != rgb_image_size_.height) {
-            ROS_ERROR("Mask size (%d, %d) does not match RGB image size (%d, %d)",
-                      mask.cols, mask.rows, rgb_image_size_.width, rgb_image_size_.height);
+            ROS_ERROR("Mask size mismatch.");
             return;
         }
 
@@ -118,8 +169,7 @@ private:
                 cloud_msg->header.frame_id,
                 mask_msg->header.frame_id,
                 cloud_msg->header.stamp,
-                ros::Duration(0.5)  // timeout
-            );
+                ros::Duration(0.5));
         } catch (tf2::TransformException& ex) {
             ROS_WARN("TF2 transform failed: %s", ex.what());
             return;
@@ -145,7 +195,6 @@ private:
             pt_in.point.x = *iter_x;
             pt_in.point.y = *iter_y;
             pt_in.point.z = *iter_z;
-
             tf2::doTransform(pt_in, pt_out, tf_transform);
 
             int u, v;
@@ -158,15 +207,10 @@ private:
                 pt.x = *iter_x;
                 pt.y = *iter_y;
                 pt.z = *iter_z;
-
                 if (has_rgb) {
-                    pt.r = *iter_r;
-                    pt.g = *iter_g;
-                    pt.b = *iter_b;
+                    pt.r = *iter_r; pt.g = *iter_g; pt.b = *iter_b;
                     ++iter_r; ++iter_g; ++iter_b;
-                } else {
-                    pt.r = pt.g = pt.b = 128;
-                }
+                } else pt.r = pt.g = pt.b = 128;
 
                 point_clusters[label].push_back(pt);
                 all_points.push_back(pt);
@@ -186,11 +230,27 @@ private:
 
         sensor_msgs::PointCloud2 merged_msg;
         pcl::PointCloud<pcl::PointXYZRGB> merged_cloud;
-
         tvss_nav::SemanticInstanceArray semantic_instances;
+
         for (const auto& cluster : point_clusters) {
-            AddInstance(cluster.first, cluster.second, cloud_msg->header, semantic_instances);
-            merged_cloud += cluster.second;
+            const int label = cluster.first;
+            std::string class_name = "unknown";
+            if (label_to_class_map_.count(label)) {
+                class_name = label_to_class_map_[label];
+            }
+
+            const auto& cloud = cluster.second;
+            auto it = cost_attr_map_.find(class_name);
+            if (it != cost_attr_map_.end()) {
+                const auto& attr = it->second;
+                AddInstance(label, cloud, cloud_msg->header, semantic_instances,
+                            attr.cost_value, attr.inflation_radius, attr.decay_rate,
+                            class_name);
+                merged_cloud += cloud;
+            } else {
+                ROS_WARN_THROTTLE(5.0, "Class '%s' not in cost_attr_map, skipping.", class_name.c_str());
+                continue;
+            }
         }
 
         semantic_instances.header = cloud_msg->header;
@@ -201,31 +261,28 @@ private:
         visual_cloud_pub_.publish(merged_msg);
     }
 
-    void AddInstance(int label,
-                     const pcl::PointCloud<pcl::PointXYZRGB>& cloud,
+    void AddInstance(int label, const pcl::PointCloud<pcl::PointXYZRGB>& cloud,
                      const std_msgs::Header& header,
                      tvss_nav::SemanticInstanceArray& array,
                      int cost_value = 254,
                      float inflation_radius = 1.0,
                      float decay_rate = 2.7685,
-                     const std::string& class_name = "unknown")
-    {
+                     const std::string& class_name = "unknown") {
         tvss_nav::SemanticInstance instance;
+        instance.header = header;
         instance.instance_id = label;
         instance.cost_value = cost_value;
         instance.inflation_radius = inflation_radius;
         instance.decay_rate = decay_rate;
         instance.class_name = class_name;
-
+        
         pcl::toROSMsg(cloud, instance.cloud);
         instance.cloud.header = header;
-
         array.instances.push_back(instance);
     }
 };
 
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv) {
     ros::init(argc, argv, "seg_node");
     ros::NodeHandle nh;
     ros::NodeHandle pnh("~");

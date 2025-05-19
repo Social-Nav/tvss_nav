@@ -1,3 +1,4 @@
+Header header
 int32 instance_id
 int32 cost_value
 float32 inflation_radius

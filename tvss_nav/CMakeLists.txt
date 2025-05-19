@@ -65,6 +65,7 @@ add_message_files(
   FILES
   SemanticInstance.msg
   SemanticInstanceArray.msg
+  StringWithHeader.msg
 )
 
 # Generate services in the 'srv' folder
@@ -144,6 +145,7 @@ add_executable(seg_node src/seg_node.cpp)
 target_link_libraries(seg_node
   ${catkin_LIBRARIES}
   ${PCL_LIBRARIES}
+  jsoncpp
 )
 
 # Declare a C++ library

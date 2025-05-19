@@ -46,12 +46,14 @@ class VLM:
                 print("✓ Connected to ROS")
             else:
                 raise ConnectionError("Failed to connect to ROS")
-            
+        
+        # Initialize sam input text publishers
         self.text_publisher = roslibpy.Topic(
             self.ros,
             '/text_input',
             'std_msgs/String'
         )
+        
         # Load tools from YAML
         tools_path = os.path.join(os.path.dirname(__file__), 'tools.yaml')
         with open(tools_path, 'r') as f:
@@ -62,10 +64,16 @@ class VLM:
         with open(config_path, 'r') as f:
             self.config = json.load(f)
         
+        # Initialize cost attribute publishers
+        self.cost_attr_publisher = roslibpy.Topic(
+            self.ros, 
+            '/cost_attributes', 
+            'std_msgs/String')
+
+        # Initialize OpenAI client
         self.openai_api_key = os.getenv('OPENAI_API_KEY')
         if not self.openai_api_key:
             raise ValueError("OPENAI_API_KEY environment variable not set")
-        # Initialize OpenAI client
         self.client = OpenAI(api_key=self.openai_api_key)
         
         # Load system prompt
@@ -246,6 +254,10 @@ class VLM:
         #                         print(f"Failed to update SFM parameter: {str(e)}")
         
         # Extract JSON from markdown
+        if not assistant_content:
+            print("No content in the response")
+            return None
+            
         json_str = extract_json_from_markdown(assistant_content)
         # print("json_str: ", json_str)
         # Parse tool calls
@@ -255,13 +267,35 @@ class VLM:
                 for tool_call in tool_calls:
                     if tool_call['tool'] == "segment_social_entities_from_name":
                         params = tool_call['args']
-                        objects = params['object_names'].split('.')
+                        object_names = params['object_names']
+                        objects = object_names.split('.')
+
+                        # Publish object names to segment
                         msg = f"Segmenting: {', '.join(objects)}"
                         print(msg)
-                        text_msg = {'data': params['object_names'].strip()}
+                        text_msg = {'data': object_names.strip()}
                         self.text_publisher.publish(roslibpy.Message(text_msg))
+
+                        # Extract and publish cost_attributes
+                        cost_attrs = params.get('cost_attributes', {})
+
+                        # Ensure every segmented object has explicitly defined cost attributes
+                        for obj in objects:
+                            if obj not in cost_attrs:
+                                print(f"[WARN] Missing cost attributes for object: {obj}")
+
+                        try:
+                            # Convert cost_attributes dictionary to JSON string
+                            cost_json = json.dumps(cost_attrs)
+                            self.cost_attr_publisher.publish(roslibpy.Message({'data': cost_json}))
+                            print(f"[INFO] Published cost attributes for {len(cost_attrs)} object(s)")
+
+                        except Exception as e:
+                            print(f"[ERROR] Failed to publish cost attributes: {e}")
+
                         # Here you can add the actual segmentation logic
                         # For example, calling your ROS service or handling the segmentation
+                        
                     elif tool_call['tool'] == "update_sfm_param":
                         params = tool_call['args']
                         result = self.update_sfm_param(
@@ -334,6 +368,9 @@ class VLM:
             self.shutdown_callback()
 
 def main():
+    for var in ["ALL_PROXY", "all_proxy"]:
+        os.environ.pop(var, None)  # 移除但不报错
+        
     vlm = VLM(debug=False, update_period=10.0)
     vlm.run()
 

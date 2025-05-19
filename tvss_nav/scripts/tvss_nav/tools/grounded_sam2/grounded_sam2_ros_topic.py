@@ -2,6 +2,7 @@ import os
 import gc
 import cv2
 import copy
+import json
 import torch
 import numpy as np
 import supervision as sv
@@ -317,10 +318,13 @@ def main():
     text_subscriber = create_subscriber(ros, TEXT_INPUT_TOPIC, 'std_msgs/String', handle_text_input)
     reset_subscriber = create_subscriber(ros, RESET_TOPIC, 'std_msgs/Int16', task_reset_signal)
     
-    publisher_compressed = create_publisher(ros, OUTPUT_IMAGE_TOPIC + '/compressed', 'sensor_msgs/CompressedImage')
-    publisher_mask = create_publisher(ros, OUTPUT_IMAGE_TOPIC + '/mask', 'sensor_msgs/CompressedImage')
+    compressed_publisher = create_publisher(ros, OUTPUT_IMAGE_TOPIC + '/compressed', 'sensor_msgs/CompressedImage')
+    mask_publisher = create_publisher(ros, OUTPUT_IMAGE_TOPIC + '/mask', 'sensor_msgs/CompressedImage')
     if DEBUG_MODE:
         print(f"Created publisher for topic: {OUTPUT_IMAGE_TOPIC}/compressed")
+        
+    inst_class_publisher = create_publisher(ros, '/instance_class_dict', 'tvss_nav/StringWithHeader')
+
 
     #####################
     # Model initialization
@@ -436,23 +440,23 @@ def main():
                     obj_info.update_box()
 
             overlay = visualize_detections(frame_resized, out_obj_ids, out_mask_logits, id_to_objects)
-            publish_mask(publisher_mask, frame_resized, out_obj_ids, out_mask_logits, locked_frame_ts, locked_frame_link)
             cv2.imshow("Segmented Frame", overlay)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 print("Exiting main")
                 break
             
-            # Publish processed image if enabledinstance_id
+            # Publish processed image if enabled instance_id
             if ENABLE_IMAGE_PUBLISH:
                 try:
-                    compressed_msg = create_compressed_image_message(
-                        overlay, format='jpg', quality=80, timestamp=locked_frame_ts, frame_link=locked_frame_link)
-                    publisher_compressed.publish(roslibpy.Message(compressed_msg))
+                    publish_overlay(compressed_publisher, overlay, locked_frame_ts, locked_frame_link)
                     if DEBUG_MODE:
                         print(f"Published image with size: {overlay.shape}")
                 except Exception as e:
                     print(f"\nError publishing image: {e}")
 
+            publish_instance_class_dict(inst_class_publisher, id_to_objects, locked_frame_ts, locked_frame_link)
+            publish_mask(mask_publisher, frame_resized, out_obj_ids, out_mask_logits, locked_frame_ts, locked_frame_link)
+            
             time.sleep(rate)
     except KeyboardInterrupt:
         print("Program interrupted")
@@ -461,13 +465,63 @@ def main():
         cv2.destroyAllWindows()
         ros.terminate()
 
-def publish_mask(mask_publisher, frame_resized, out_obj_ids, out_mask_logits, timestamp, frame_link):
+def publish_overlay(publisher, overlay, timestamp, frame_link):
+    '''
+    Publish the overlay image to a ROS topic.
+    Args:
+        publisher: roslibpy publisher for CompressedImage.
+        overlay: The overlay image to be published.
+        timestamp: (secs, nsecs) tuple or None.
+        frame_link (str): Frame ID for Header.
+    '''
+    compressed_msg = create_compressed_image_message(overlay, format='jpg', quality=80, timestamp=timestamp, frame_link=frame_link)
+    publisher.publish(roslibpy.Message(compressed_msg))
+
+def publish_instance_class_dict(publisher, id_to_objects, timestamp, frame_link):
+    """
+    Publish instance-class mapping as a custom message via roslibpy with dict-based formatting.
+
+    Args:
+        publisher: roslibpy publisher for InstanceClassDict.
+        id_to_objects: Dictionary mapping object IDs to class labels.
+        timestamp: (secs, nsecs) tuple or None.
+        frame_link (str): Frame ID for Header.
+    """
+    # Handle timestamp
+    if timestamp is None:
+        now = time.time()
+        secs = int(now)
+        nsecs = int((now - secs) * 1e9)
+    else:
+        secs, nsecs = timestamp
+        
+    # Construct final ROS message dict
+    class_dict_msg = {
+        'header': {
+            'stamp': {'secs': secs, 'nsecs': nsecs},
+            'frame_id': frame_link
+        },
+        'str': json.dumps(id_to_objects)
+    }
+
+    # Publish as roslibpy.Message
+    publisher.publish(roslibpy.Message(class_dict_msg))
+    
+def publish_mask(publisher, frame_resized, out_obj_ids, out_mask_logits, timestamp, frame_link):
     """ 
     Publish a Mask image with instance IDs.
 
     - The "mask" values are no longer 0/255, but instead instance_id itself.
     - Uses PNG compression to reduce bandwidth.
     - Adds erosion to clean mask edges.
+    
+    Args:
+        publisher: roslibpy publisher for CompressedImage.
+        frame_resized: The resized frame used for tracking.
+        out_obj_ids: List of object IDs.
+        out_mask_logits: Segmentation mask logits.
+        timestamp: (secs, nsecs) tuple or None.
+        frame_link (str): Frame ID for Header.
     """
 
     all_mask = np.zeros((frame_resized.shape[0], frame_resized.shape[1]), dtype=np.uint8)  # HxW
@@ -486,7 +540,8 @@ def publish_mask(mask_publisher, frame_resized, out_obj_ids, out_mask_logits, ti
 
     mask_msg = create_compressed_image_message(all_mask, format='png', quality=3, timestamp=timestamp, frame_link=frame_link)
 
-    mask_publisher.publish(roslibpy.Message(mask_msg))
+    publisher.publish(roslibpy.Message(mask_msg))
+
 
 if __name__ == "__main__":
     try:
