@@ -1,18 +1,19 @@
+import base64
 import json
 import os
 import signal
 import sys
-import base64
 import threading
-import yaml
 import time
-from typing import List, Dict, Any
+from datetime import datetime
+from typing import Any, Dict, List
+
 import roslibpy
-import re
+import yaml
 from openai import OpenAI
+
 from tools.sfm_config.sfm_config import update_sfm_param
 from utils.json_parser import extract_json_from_markdown, parse_tool_calls
-from datetime import datetime
 
 # Set up logging
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -63,11 +64,7 @@ class VLM:
                 raise ConnectionError("Failed to connect to ROS")
         
         # Initialize sam input text publishers
-        self.text_publisher = roslibpy.Topic(
-            self.ros,
-            '/text_input',
-            'std_msgs/String'
-        )
+        self.text_publisher = roslibpy.Topic(self.ros, '/text_input', 'std_msgs/String')
         
         # Load tools from YAML
         tools_path = os.path.join(os.path.dirname(__file__), 'tools.yaml')
@@ -80,16 +77,18 @@ class VLM:
             self.config = json.load(f)
         
         # Initialize cost attribute publishers
-        self.cost_attr_publisher = roslibpy.Topic(
-            self.ros,
-            '/cost_attributes',
-            'std_msgs/String')
+        self.cost_attr_publisher = roslibpy.Topic(self.ros, '/cost_attributes', 'std_msgs/String')
 
         # Initialize OpenAI client
-        self.openai_api_key = os.getenv('OPENAI_API_KEY')
-        if not self.openai_api_key:
-            raise ValueError("OPENAI_API_KEY environment variable not set")
-        self.client = OpenAI(api_key=self.openai_api_key)
+        self.api_key = os.getenv('OPENAI_API_KEY')
+        # self.api_key = os.getenv('ARK_API_KEY')
+        if not self.api_key:
+            raise ValueError("api key environment variable not set")
+        self.client = OpenAI(api_key=self.api_key)
+        # self.client = OpenAI(
+        #     base_url="https://ark.cn-beijing.volces.com/api/v3",
+        #     api_key=self.api_key,
+        # )
         
         # Load system prompt
         prompt_path = os.path.join(os.path.dirname(__file__), 'system_prompt.txt')
@@ -101,16 +100,12 @@ class VLM:
         self.image_lock = threading.Lock()
         self.received_first_image = False
         
-        self.query_counter = 0
-        
         # Subscribe to compressed image topic
-        log("Subscribing to camera topic: /camera/color/image_raw/compressed")
-        self.image_sub = roslibpy.Topic(
-            self.ros,
-            '/camera/color/image_raw/compressed',
-            'sensor_msgs/CompressedImage'
-        )
+        self.image_sub = roslibpy.Topic(self.ros, '/camera/color/image_raw/compressed', 'sensor_msgs/CompressedImage')
         self.image_sub.subscribe(self.image_callback)
+        log("Subscribing to camera topic: /camera/color/image_raw/compressed")
+        
+        self.query_counter = 0
         
         # Setup signal handlers
         signal.signal(signal.SIGINT, self.signal_handler)
@@ -310,13 +305,14 @@ class VLM:
 
     def run(self):
         """Main loop for handling user input and periodic updates"""
-        log("\nVLM ready. Enter your queries (Ctrl+C to exit, press 'q' to restart):")
+        log("\nVLM ready.")
         try:
             while not self.shutdown_flag and self.ros.is_connected:
                 if self.paused:
                     if not self.received_first_image:
                         continue
                     
+                    log("\nEnter your queries (Ctrl+C to exit, press 'q' to restart):")
                     user_query = self.get_input("\nQuery: ", timeout=100000)
                     if not user_query:
                         continue

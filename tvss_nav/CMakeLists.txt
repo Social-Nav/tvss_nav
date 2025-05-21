@@ -65,7 +65,7 @@ add_message_files(
   FILES
   SemanticInstance.msg
   SemanticInstanceArray.msg
-  StringWithHeader.msg
+  StringStamped.msg
 )
 
 # Generate services in the 'srv' folder

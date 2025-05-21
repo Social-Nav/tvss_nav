@@ -27,7 +27,7 @@
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
 
-#include <tvss_nav/StringWithHeader.h>
+#include <tvss_nav/StringStamped.h>
 #include <tvss_nav/SemanticInstance.h>
 #include <tvss_nav/SemanticInstanceArray.h>
 #include <tvss_nav/utils/geometry_utils.h>
@@ -78,7 +78,7 @@ private:
 
     message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub_;
     message_filters::Subscriber<sensor_msgs::CompressedImage> mask_sub_;
-    message_filters::Subscriber<tvss_nav::StringWithHeader> instance_class_sub_;
+    message_filters::Subscriber<tvss_nav::StringStamped> instance_class_sub_;
     ros::Subscriber rgb_info_sub_;
     ros::Subscriber cost_attr_sub_;
     ros::Publisher semantic_pub_;
@@ -89,7 +89,7 @@ private:
     std::string instance_class_topic_, cost_attribute_topic_;
     double voxel_leaf_size_;
 
-    typedef message_filters::sync_policies::ExactTime<sensor_msgs::PointCloud2, sensor_msgs::CompressedImage, tvss_nav::StringWithHeader> ExactSyncPolicy;
+    typedef message_filters::sync_policies::ExactTime<sensor_msgs::PointCloud2, sensor_msgs::CompressedImage, tvss_nav::StringStamped> ExactSyncPolicy;
     typedef message_filters::Synchronizer<ExactSyncPolicy> Sync;
     boost::shared_ptr<Sync> sync_;
 
@@ -133,7 +133,7 @@ private:
 
     void processData(const sensor_msgs::PointCloud2ConstPtr& cloud_msg,
                      const sensor_msgs::CompressedImageConstPtr& mask_msg,
-                     const tvss_nav::StringWithHeaderConstPtr& class_msg) {
+                     const tvss_nav::StringStampedConstPtr& class_msg) {
         label_to_class_map_.clear();
         Json::Reader reader;
         Json::Value root;

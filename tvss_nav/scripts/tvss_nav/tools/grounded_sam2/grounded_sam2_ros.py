@@ -1,21 +1,20 @@
+import json
 import os
-import gc
+import time
+from threading import Lock
+
 import cv2
-import copy
-import torch
 import numpy as np
+import roslibpy
 import supervision as sv
+import torch
 from PIL import Image
+from omegaconf import OmegaConf
+from transformers import AutoModelForZeroShotObjectDetection, AutoProcessor
+
 from sam2.build_sam import build_sam2, build_sam2_camera_predictor
 from sam2.sam2_image_predictor import SAM2ImagePredictor
-from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection
 from utils.mask_dictionary_model import MaskDictionaryModel, ObjectInfo
-import time
-import threading
-import base64
-import roslibpy
-from threading import Lock
-from omegaconf import OmegaConf
 
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, message=".*?.*")
