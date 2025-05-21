@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 import roslibpy
 import supervision as sv
+import threading
 import torch
 from PIL import Image
 from omegaconf import OmegaConf
@@ -355,7 +356,7 @@ def main():
     sam2_masks = MaskDictionaryModel()
 
     rate = 0.1
-    detection_timeout = 3
+    detection_timeout = 3000
 
     last_detect_time = time.time()
 
