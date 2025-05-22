@@ -75,7 +75,7 @@ class Trunk(nn.Module):
 #         return self.mask_decoder(image_embeddings, image_pe, sparse_prompt_embeddings, dense_prompt_embeddings, multimask_output, repeat_image, high_res_features)
 
 
-def export_model(model: SAM2VideoPredictor, out_dir: str):
+def export_model(model: SAM2VideoPredictor, out_dir: str, file_name: str):
     os.makedirs(out_dir, exist_ok=True)
     dummy_input = torch.zeros([1, 3, 1024, 1024]).to("cuda")
 
@@ -83,7 +83,7 @@ def export_model(model: SAM2VideoPredictor, out_dir: str):
     image_encoder.eval()
 
 
-    torch.onnx.export(image_encoder, dummy_input, out_dir + "/hiera_l_image_encoder.onnx", export_params=True, opset_version=17, output_names=["vision_features", "vision_pos_enc_0", "vision_pos_enc_1", "vision_pos_enc_2", "backbone_fpn_0", "backbone_fpn_1", "backbone_fpn_2"],verbose=True)
+    torch.onnx.export(image_encoder, dummy_input, out_dir + file_name, export_params=True, opset_version=17, output_names=["vision_features", "vision_pos_enc_0", "vision_pos_enc_1", "vision_pos_enc_2", "backbone_fpn_0", "backbone_fpn_1", "backbone_fpn_2"],verbose=True)
     
     # trunk = Trunk(model)
     # trunk.eval()
@@ -101,4 +101,4 @@ if __name__ == "__main__":
 
     predictor = build_sam2_video_predictor(model_cfg, sam2_checkpoint, device=device)
 
-    export_model(predictor, "tensorrt/onnx")
+    export_model(predictor, out_dir="tensorrt/onnx", file_name="/hiera_l_image_encoder.onnx")

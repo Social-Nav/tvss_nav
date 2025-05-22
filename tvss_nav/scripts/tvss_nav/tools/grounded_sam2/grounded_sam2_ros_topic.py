@@ -344,7 +344,7 @@ def main():
     sam2_masks = MaskDictionaryModel()
 
     rate = 0.1
-    detection_timeout = 3
+    detection_timeout = 5
     # detection_timeout = np.inf
 
     last_detect_time = time.time()
