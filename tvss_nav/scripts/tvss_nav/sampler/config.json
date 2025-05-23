@@ -1,5 +1,5 @@
 {
-    "model": "gpt-4o",
+    "model": "doubao-1-5-thinking-vision-pro-250428",
     "max_text_tokens": 1000,
     "max_image_tokens": 1000
 }

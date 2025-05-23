@@ -10,5 +10,3 @@ windows:
           - roslaunch --wait rosbridge_server rosbridge_websocket.launch
         - pc_seg:
           - roslaunch --wait tvss_nav pointcloud_seg.launch
-        - costmap:
-          # - cd ../../tvss_nav/scripts/tvss_nav/utils/ && /usr/bin/python3.8 cloud2costmap.py

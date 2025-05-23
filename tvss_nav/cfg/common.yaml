@@ -1,0 +1,4 @@
+pointcloud_seg:
+  pointcloud_topic: "/camera/depth/color/points"
+  mask_topic: "/segmented_image/mask"
+  rgb_info_topic: "/camera/color/camera_info"

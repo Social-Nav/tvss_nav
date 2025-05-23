@@ -1,4 +1,6 @@
 .vscode
+.idea
+.cache
 __pycache__
 
 build/
@@ -8,4 +10,4 @@ logs/
 
 *.onnx
 *.trt
-checkpoints
+checkpoints/

@@ -1,16 +1,33 @@
+import base64
 import json
 import os
 import signal
 import sys
-import base64
 import threading
-import yaml
 import time
-from typing import List, Dict, Any
+from datetime import datetime
+from typing import Any, Dict, List
+
 import roslibpy
-import re
+import yaml
 from openai import OpenAI
+
 from tools.sfm_config.sfm_config import update_sfm_param
+from utils.json_parser import extract_json_from_markdown, parse_tool_calls
+
+# Set up logging
+base_dir = os.path.dirname(os.path.abspath(__file__))
+log_dir = os.path.join(base_dir, f"logs/{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+os.makedirs(log_dir, exist_ok=True)
+log_image_dir = os.path.join(log_dir, "images")
+os.makedirs(log_image_dir, exist_ok=True)
+log_file = os.path.join(log_dir, f"vlm_log.txt")
+log_fp = open(log_file, "w")
+
+def log(msg: str):
+    print(msg)
+    log_fp.write(msg + "\n")
+    log_fp.flush()
 
 class VLM:
     def __init__(self, debug=False, update_period=10.0):
@@ -34,23 +51,21 @@ class VLM:
         self.input_thread = None
         
         # Setup ROS connection
-        print("Starting VLM node...")
+        log("Starting VLM node...")
         self.ros = roslibpy.Ros(host='localhost', port=9090)
         self.ros.run()
         if not self.ros.is_connected:
-            print("Waiting for ROS connection...")
+            log("Waiting for ROS connection...")
             while not self.ros.is_connected and not self.shutdown_flag:
                 time.sleep(0.1)
             if self.ros.is_connected:
-                print("✓ Connected to ROS")
+                log("✓ Connected to ROS")
             else:
                 raise ConnectionError("Failed to connect to ROS")
-            
-        self.text_publisher = roslibpy.Topic(
-            self.ros,
-            '/text_input',
-            'std_msgs/String'
-        )
+        
+        # Initialize sam input text publishers
+        self.text_publisher = roslibpy.Topic(self.ros, '/text_input', 'std_msgs/String')
+        
         # Load tools from YAML
         tools_path = os.path.join(os.path.dirname(__file__), 'tools.yaml')
         with open(tools_path, 'r') as f:
@@ -61,8 +76,19 @@ class VLM:
         with open(config_path, 'r') as f:
             self.config = json.load(f)
         
+        # Initialize cost attribute publishers
+        self.cost_attr_publisher = roslibpy.Topic(self.ros, '/cost_attributes', 'std_msgs/String')
+
         # Initialize OpenAI client
-        self.client = OpenAI(api_key=self.config['api_key'])
+        self.api_key = os.getenv('OPENAI_API_KEY')
+        # self.api_key = os.getenv('ARK_API_KEY')
+        if not self.api_key:
+            raise ValueError("api key environment variable not set")
+        self.client = OpenAI(api_key=self.api_key)
+        # self.client = OpenAI(
+        #     base_url="https://ark.cn-beijing.volces.com/api/v3",
+        #     api_key=self.api_key,
+        # )
         
         # Load system prompt
         prompt_path = os.path.join(os.path.dirname(__file__), 'system_prompt.txt')
@@ -75,13 +101,11 @@ class VLM:
         self.received_first_image = False
         
         # Subscribe to compressed image topic
-        print(f"Subscribing to camera topic: /camera/color/image_raw/compressed")
-        self.image_sub = roslibpy.Topic(
-            self.ros,
-            '/camera/color/image_raw/compressed',
-            'sensor_msgs/CompressedImage'
-        )
+        self.image_sub = roslibpy.Topic(self.ros, '/camera/color/image_raw/compressed', 'sensor_msgs/CompressedImage')
         self.image_sub.subscribe(self.image_callback)
+        log("Subscribing to camera topic: /camera/color/image_raw/compressed")
+        
+        self.query_counter = 0
         
         # Setup signal handlers
         signal.signal(signal.SIGINT, self.signal_handler)
@@ -98,11 +122,12 @@ class VLM:
 
     def signal_handler(self, signum, frame):
         """Handle SIGINT and SIGTERM"""
-        print("\nShutting down...")
+        log("\nShutting down...")
         self.shutdown_flag = True
         if self.input_event:
             self.input_event.set()
         self.shutdown_callback()
+        log_fp.close()
         sys.exit(0)
 
     def image_callback(self, msg):
@@ -110,7 +135,7 @@ class VLM:
         with self.image_lock:
             self.latest_image = msg
             if not self.received_first_image:
-                print("✓ Camera connection established")
+                log("✓ Camera connection established")
                 self.received_first_image = True
 
     def process_image(self, compressed_msg):
@@ -165,6 +190,13 @@ class VLM:
         if not self.message_history and user_query:
             self.initial_task = user_query
 
+        # Save image to file for debugging
+        image_name = f"image_{self.query_counter}.jpg"
+        image_path = os.path.join(log_image_dir, image_name)
+        with open(image_path, "wb") as img_file:
+            img_file.write(base64.b64decode(image_base64))
+        log(f"Image saved as {image_name}")
+        
         # Construct messages
         messages = [{"role": "system", "content": self.system_prompt}]
         if self.initial_task:
@@ -182,9 +214,9 @@ class VLM:
         messages.append(user_message)
 
         if self.debug:
-            print("\nSending request to OpenAI API…")
+            log("\nSending request to OpenAI API…")
         else:
-            print("\nProcessing…")
+            log("\nProcessing…")
 
         # One-time call, no stream, to get usage
         response = self.client.chat.completions.create(
@@ -204,42 +236,63 @@ class VLM:
         total_tokens = usage.total_tokens
 
         # Output content
-        print(assistant_content)
+        log(assistant_content)
         if self.debug:
-            print(f"Tokens used - Prompt: {prompt_tokens}, Completion: {completion_tokens}, Total: {total_tokens}")
+            log(f"Tokens used - Prompt: {prompt_tokens}, Completion: {completion_tokens}, Total: {total_tokens}")
 
-        # Process any tool calls from the response
-        if hasattr(response.choices[0].message, "tool_calls"):
-            tool_calls = response.choices[0].message.tool_calls
-            if tool_calls:
+        if not assistant_content:
+            log("No content in the response")
+            return None
+            
+        json_str = extract_json_from_markdown(assistant_content)
+        # print("json_str: ", json_str)
+        # Parse tool calls
+        tool_calls = parse_tool_calls(json_str)
+        if tool_calls:
+            try:
                 for tool_call in tool_calls:
-                    if tool_call.function.name == "segment_social_entities_from_name":
+                    if tool_call['tool'] == "segment_social_entities_from_name":
+                        params = tool_call['args']
+                        object_names = params['object_names']
+                        objects = object_names.split('.')
+
+                        # Publish object names to segment
+                        msg = f"Segmenting: {', '.join(objects)}"
+                        log(msg)
+                        text_msg = {'data': object_names.strip()}
+                        self.text_publisher.publish(roslibpy.Message(text_msg))
+
+                        # Extract and publish cost_attributes
+                        cost_attrs = params.get('cost_attributes', {})
+
+                        # Ensure every segmented object has explicitly defined cost attributes
+                        for obj in objects:
+                            if obj not in cost_attrs:
+                                log(f"[WARN] Missing cost attributes for object: {obj}")
+
                         try:
-                            params = json.loads(tool_call.function.arguments)
-                            objects = params['object_names'].split('.')
-                            msg = f"Segmenting: {', '.join(objects)}"
-                            print(msg)
-                            text_msg = {'data': params['object_names'].strip()}
-                            self.text_publisher.publish(roslibpy.Message(text_msg))
-                            # Here you can add the actual segmentation logic
-                            # For example, calling your ROS service or handling the segmentation
-                        except json.JSONDecodeError as e:
-                            if self.debug:
-                                print(f"Failed to parse tool arguments: {str(e)}")
-                    elif tool_call.function.name == "update_sfm_param":
-                        try:
-                            params = json.loads(tool_call.function.arguments)
-                            result = self.update_sfm_param(
-                                params['param_name'],
-                                float(params['value'])
-                            )
-                            print(result)
-                        except json.JSONDecodeError as e:
-                            if self.debug:
-                                print(f"Failed to parse tool arguments: {str(e)}")
+                            # Convert cost_attributes dictionary to JSON string
+                            cost_json = json.dumps(cost_attrs)
+                            self.cost_attr_publisher.publish(roslibpy.Message({'data': cost_json}))
+                            log(f"[INFO] Published cost attributes for {len(cost_attrs)} object(s)")
+
                         except Exception as e:
-                            if self.debug:
-                                print(f"Failed to update SFM parameter: {str(e)}")
+                            print(f"[ERROR] Failed to publish cost attributes: {e}")
+
+                        # Here you can add the actual segmentation logic
+                        # For example, calling your ROS service or handling the segmentation
+                        
+                    elif tool_call['tool'] == "update_sfm_param":
+                        params = tool_call['args']
+                        result = self.update_sfm_param(
+                            params['param_name'],
+                            float(params['value'])
+                        )
+                        log(result)
+
+            except Exception as e:
+                if self.debug:
+                    log(f"Failed to process tool calls: {str(e)}")
 
         # Update message history
         current_response = {"role": "assistant", "content": assistant_content}
@@ -252,26 +305,29 @@ class VLM:
 
     def run(self):
         """Main loop for handling user input and periodic updates"""
-        print("\nVLM ready. Enter your queries (Ctrl+C to exit, press 'q' to restart):")
+        log("\nVLM ready.")
         try:
             while not self.shutdown_flag and self.ros.is_connected:
                 if self.paused:
                     if not self.received_first_image:
                         continue
-                    user_query = input("\nQuery: ").strip()
-                    if user_query.lower() == 'q':
-                        print("\nRestarting reasoning…")
-                        self.message_history.clear()
-                        self.initial_task = None  # Reset initial task
-                        continue
+                    
+                    log("\nEnter your queries (Ctrl+C to exit, press 'q' to restart):")
+                    user_query = self.get_input("\nQuery: ", timeout=100000)
                     if not user_query:
                         continue
+                    if user_query.lower() == 'q':
+                        log("\nRestarting reasoning…")
+                        self.message_history.clear()
+                        self.initial_task = None
+                        continue
+                    
                     self.paused = False
                     self.last_update_time = time.time()
                 else:
                     user_input = self.get_input()
                     if user_input and user_input.lower() == 'q':
-                        print("\nRestarting reasoning…")
+                        log("\nRestarting reasoning…")
                         self.paused = True
                         self.message_history.clear()
                         self.initial_task = None  # Reset initial task
@@ -284,22 +340,27 @@ class VLM:
                 with self.image_lock:
                     img = self.latest_image
                 if img is None:
-                    print("Waiting for camera input…")
+                    log("Waiting for camera input…")
                     continue
 
                 img_b64 = self.process_image(img)
                 self.query_gpt(img_b64, user_query)
-                print("\n" + "-"*50)
+                self.query_counter += 1
+                log("\n" + "-"*50)
 
         except KeyboardInterrupt:
-            print("\nShutting down…")
+            log("\nShutting down…")
         finally:
             self.shutdown_flag = True
             if self.input_event:
                 self.input_event.set()
             self.shutdown_callback()
+            log_fp.close()
 
 def main():
+    for var in ["ALL_PROXY", "all_proxy"]:
+        os.environ.pop(var, None)
+        
     vlm = VLM(debug=False, update_period=10.0)
     vlm.run()
 

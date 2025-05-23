@@ -1,21 +1,21 @@
+import json
 import os
-import gc
+import time
+from threading import Lock
+
 import cv2
-import copy
-import torch
 import numpy as np
+import roslibpy
 import supervision as sv
+import threading
+import torch
 from PIL import Image
+from omegaconf import OmegaConf
+from transformers import AutoModelForZeroShotObjectDetection, AutoProcessor
+
 from sam2.build_sam import build_sam2, build_sam2_camera_predictor
 from sam2.sam2_image_predictor import SAM2ImagePredictor
-from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection
 from utils.mask_dictionary_model import MaskDictionaryModel, ObjectInfo
-import time
-import threading
-import base64
-import roslibpy
-from threading import Lock
-from omegaconf import OmegaConf
 
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, message=".*?.*")
@@ -266,9 +266,13 @@ def main():
 
     # Model and checkpoint settings
 
-    SAM2_CHECKPOINT = "./checkpoints/sam2.1_hiera_tiny.pt"
-    MODEL_CFG = "configs/sam2.1/sam2.1_hiera_t.yaml"
+    SAM2_CHECKPOINT = "./checkpoints/sam2.1_hiera_large.pt"
+    MODEL_CFG = "configs/sam2.1/sam2.1_hiera_l.yaml"
     MODEL_ID = "IDEA-Research/grounding-dino-base"
+
+    model_name = os.path.splitext(os.path.basename(MODEL_CFG))[0]  # sam2.1_hiera_large
+    engine_name = model_name.replace("sam2.1_", "") + "_image_encoder.trt"
+    os.environ["SAM2_TRT_ENGINE_PATH"] = os.path.join(os.environ["PWD"], "tensorrt", "trt", engine_name)
 
     cfg = OmegaConf.load("sam2/" + MODEL_CFG)
     use_trt = cfg.model.get("use_trt", None)
@@ -276,27 +280,7 @@ def main():
 
     #####################
     # State variables (now local to main)
-    #####################def main():
     #####################
-    # Configurable Parameters
-    #####################
-    # INPUT_IMAGE_TOPIC = '/robot_firstperson_rgb/compressed'
-    # INPUT_IMAGE_TOPIC = '/camera/color/image_raw'
-    INPUT_IMAGE_TOPIC = '/camera/color/image_raw/compressed'
-    OUTPUT_IMAGE_TOPIC = '/segmented_image'
-    IMAGE_MSG_TYPE = "CompressedImage"  # "CompressedImage" or "Image"
-    # IMAGE_MSG_TYPE = "Image"
-    RESET_TOPIC = '/scenario_reset'
-
-    ENABLE_IMAGE_PUBLISH = True
-    DEBUG_MODE = False
-    HEIGHT = 480
-    WIDTH = 640
-
-    # Model and checkpoint settings
-    SAM2_CHECKPOINT = "./checkpoints/sam2.1_hiera_tiny.pt"
-    MODEL_CFG = "configs/sam2.1/sam2.1_hiera_t.yaml"
-    MODEL_ID = "IDEA-Research/grounding-dino-base"
     global_msg = None
     msg_lock = Lock()
     text_prompt = None
@@ -372,7 +356,7 @@ def main():
     sam2_masks = MaskDictionaryModel()
 
     rate = 0.1
-    detection_timeout = 3
+    detection_timeout = 3000
 
     last_detect_time = time.time()
 

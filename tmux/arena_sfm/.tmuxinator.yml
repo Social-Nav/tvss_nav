@@ -9,20 +9,20 @@ windows:
         - core:
           - roscore
         - arena:
-          # - roslaunch --wait tvss_nav start_arena_sfm.launch simulator:=gazebo model:=rto map_file:=small_warehouse tm_obstacles:=random tm_robots:=random scenario_file:=1.json entity_manager:=pedsim
-          # - roslaunch --wait tvss_nav start_arena_sfm.launch simulator:=gazebo model:=rto map_file:=hospital tm_obstacles:=scenario tm_robots:=scenario scenario_file:=default.json entity_manager:=pedsim
-          - roslaunch --wait tvss_nav start_arena_sfm.launch simulator:=gazebo model:=rto map_file:=map_empty tm_obstacles:=random tm_robots:=random scenario_file:=default.json entity_manager:=pedsim
+          # - roslaunch --wait tvss_nav start_arena_sfm.launch simulator:=gazebo model:=jackal map_file:=small_warehouse tm_obstacles:=random tm_robots:=random scenario_file:=1.json entity_manager:=pedsim
+          - roslaunch --wait tvss_nav start_arena_sfm.launch simulator:=gazebo model:=jackal map_file:=hospital tm_obstacles:=scenario tm_robots:=scenario scenario_file:=default.json entity_manager:=pedsim
+          # - roslaunch --wait tvss_nav start_arena_sfm.launch simulator:=gazebo model:=jackal map_file:=map_empty tm_obstacles:=random tm_robots:=random scenario_file:=default.json entity_manager:=pedsim
         - dynamic_reconf:
           - |
             # Wait for the arena launch to complete initialization
-            while ! rostopic list | grep -q "/rto/move_base_flex/SFMControllerROS/parameter_descriptions"; do
-              echo "Waiting for /rto/move_base_flex/SFMControllerROS/parameter_descriptions to become available before starting rqt_reconfigure..."
+            while ! rostopic list | grep -q "/jackal/move_base_flex/SFMControllerROS/parameter_descriptions"; do
+              echo "Waiting for /jackal/move_base_flex/SFMControllerROS/parameter_descriptions to become available before starting rqt_reconfigure..."
               sleep 1
             done
 
             # Start dynamic reconfigure
             rosrun rqt_reconfigure rqt_reconfigure
-        # - teleop:
-          # - roslaunch --wait teleop_twist_joy teleop.launch joy_config:=xbox joy_dev:=/dev/input/js0
+        - teleop:
+          - roslaunch --wait teleop_twist_joy teleop.launch joy_config:=xbox joy_dev:=/dev/input/js0
         - cmd_relay:
-          - rosrun topic_tools relay /cmd_vel /rto/cmd_vel
+          - rosrun topic_tools relay /cmd_vel /jackal/cmd_vel

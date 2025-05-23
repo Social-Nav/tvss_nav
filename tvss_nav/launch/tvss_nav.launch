@@ -1,0 +1,32 @@
+<launch>
+  <arg name="show_rviz" default="true" />
+  <arg name="rviz_file" default="common" />
+
+  <rosparam file="$(find tvss_nav)/cfg/common.yaml" command="load" />
+
+  <!-- rosbridge -->
+  <include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch" />
+
+  <!-- <node pkg="nodelet" type="nodelet" name="depth_to_cloud" args="standalone depth_image_proc/point_cloud_xyz">
+    <remap from="image_rect" to="/camera/aligned_depth_to_color/image_raw"/>
+    <remap from="camera_info" to="/camera/color/camera_info"/>
+    <remap from="points" to="/depth_cloud"/>
+  </node> -->
+
+  <!-- pointcloud_seg -->
+  <include file="$(find tvss_nav)/launch/utils/pointcloud_seg.launch">
+    <arg name="pointcloud_topic" value="$(param pointcloud_seg/pointcloud_topic)" />
+    <arg name="mask_topic" value="$(param pointcloud_seg/mask_topic)" />
+    <arg name="rgb_info_topic" value="$(param pointcloud_seg/rgb_info_topic)" />
+  </include>
+
+  <!-- goal_projector -->
+  <node pkg="tvss_nav" type="goal_projector.py" name="goal_projector" output="screen" cwd="node"/>
+
+  <!-- rviz -->
+  <include file="$(find tvss_nav)/launch/rviz.launch">
+    <arg name="show_rviz" value="$(arg show_rviz)" />
+    <arg name="rviz_file" value="$(arg rviz_file)" />
+  </include>
+
+</launch>
