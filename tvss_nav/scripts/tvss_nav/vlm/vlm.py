@@ -31,26 +31,20 @@ def log(msg: str):
 
 class VLM:
     def __init__(self, debug=False, update_period=10.0):
-        # Initialize flags
         self.shutdown_flag = False
         self.debug = debug
-        self.paused = True  # Start in paused state, waiting for initial query
-        
-        # Timer settings
+        self.paused = True
         self.update_period = update_period
         self.last_update_time = 0
-        
-        # Context management
+
         self.message_history: List[Dict[str, Any]] = []
-        self.max_history = 4  # Maximum number of message pairs to keep
-        self.initial_task = None  # Store the initial task description
-        
-        # Threading control
+        self.max_history = 4
+        self.initial_task = None
+
         self.input_event = threading.Event()
         self.user_input = None
         self.input_thread = None
-        
-        # Setup ROS connection
+
         log("Starting VLM node...")
         self.ros = roslibpy.Ros(host='localhost', port=9090)
         self.ros.run()
@@ -62,54 +56,63 @@ class VLM:
                 log("✓ Connected to ROS")
             else:
                 raise ConnectionError("Failed to connect to ROS")
-        
-        # Initialize sam input text publishers
-        self.text_publisher = roslibpy.Topic(self.ros, '/text_input', 'std_msgs/String')
-        
-        # Load tools from YAML
+
+        # ==== Read topic names from ROS params ====
+        self.camera_topic = self.get_param('/color_topic', '/camera/color/image_raw/compressed')
+        self.text_topic = self.get_param('/vlm/text_input_topic', '/text_input')
+        self.cost_attribute_topic = self.get_param('/vlm/cost_attribute_topic', '/cost_attributes')
+
+        # === Publishers ===
+        self.text_publisher = roslibpy.Topic(self.ros, self.text_topic, 'std_msgs/String')
+        self.cost_attr_publisher = roslibpy.Topic(self.ros, self.cost_attribute_topic, 'std_msgs/String')
+
+        # === Load tools ===
         tools_path = os.path.join(os.path.dirname(__file__), 'tools.yaml')
         with open(tools_path, 'r') as f:
             self.tools = yaml.safe_load(f)['tools']
-        
-        # Load configuration
+
+        # === Load config.json ===
         config_path = os.path.join(os.path.dirname(__file__), 'config.json')
         with open(config_path, 'r') as f:
             self.config = json.load(f)
-        
-        # Initialize cost attribute publishers
-        self.cost_attr_publisher = roslibpy.Topic(self.ros, '/cost_attributes', 'std_msgs/String')
 
-        # Initialize OpenAI client
-        self.api_key = os.getenv('OPENAI_API_KEY')
-        # self.api_key = os.getenv('ARK_API_KEY')
-        if not self.api_key:
-            raise ValueError("api key environment variable not set")
-        self.client = OpenAI(api_key=self.api_key)
-        # self.client = OpenAI(
-        #     base_url="https://ark.cn-beijing.volces.com/api/v3",
-        #     api_key=self.api_key,
-        # )
-        
-        # Load system prompt
+        # === Load system prompt ===
         prompt_path = os.path.join(os.path.dirname(__file__), 'system_prompt.txt')
         with open(prompt_path, 'r') as f:
             self.system_prompt = f.read().strip()
-        
-        # Initialize image queue and latest image
+
+        # === OpenAI client ===
+        self.api_key = os.getenv('OPENAI_API_KEY')
+        if not self.api_key:
+            raise ValueError("api key environment variable not set")
+        self.client = OpenAI(api_key=self.api_key)
+
+        # === Image state ===
         self.latest_image = None
         self.image_lock = threading.Lock()
         self.received_first_image = False
-        
-        # Subscribe to compressed image topic
-        self.image_sub = roslibpy.Topic(self.ros, '/camera/color/image_raw/compressed', 'sensor_msgs/CompressedImage')
+
+        self.image_sub = roslibpy.Topic(self.ros, self.camera_topic, 'sensor_msgs/CompressedImage')
         self.image_sub.subscribe(self.image_callback)
-        log("Subscribing to camera topic: /camera/color/image_raw/compressed")
-        
+        log(f"Subscribing to camera topic: {self.camera_topic}")
+
         self.query_counter = 0
-        
-        # Setup signal handlers
+
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
+
+    def get_param(self, name, default):
+        param = roslibpy.Param(self.ros, name)
+        result = {}
+        event = threading.Event()
+
+        def callback(value):
+            result['value'] = value
+            event.set()
+
+        param.get(callback)
+        event.wait(timeout=1.0)
+        return result.get('value', default)
 
     def shutdown_callback(self):
         """Shutdown callback"""

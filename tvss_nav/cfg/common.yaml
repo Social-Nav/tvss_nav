@@ -1,4 +1,19 @@
-pointcloud_seg:
-  pointcloud_topic: "/camera/depth/color/points"
+color_topic: "/camera/color/image_raw"
+color_compressed_topic: "/camera/color/image_raw/compressed"
+color_info_topic: "/camera/color/camera_info"
+aligned_depth_topic: "/camera/aligned_depth_to_color/image_raw"
+pointcloud_topic: "/camera/depth/color/points"
+
+visual_semantics:
   mask_topic: "/segmented_image/mask"
-  rgb_info_topic: "/camera/color/camera_info"
+
+subgoal_sampler:
+  pixel_goal_topic: "/pixel_subgoal"
+
+vlm:
+  text_input_topic: "/text_input"
+  cost_attribute_topic: "/cost_attributes"
+
+goal_projector:
+  goal_pose_topic: "/goalpose"
+  target_frame: "map"

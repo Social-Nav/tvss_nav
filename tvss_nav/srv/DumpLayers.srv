@@ -1,5 +1,0 @@
----
-
-Header header
-nav_msgs/OccupancyGrid costmap
-tvss_nav/SemanticInstanceArray[] social_layers

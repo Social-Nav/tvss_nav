@@ -15,13 +15,23 @@
 
   <!-- pointcloud_seg -->
   <include file="$(find tvss_nav)/launch/utils/pointcloud_seg.launch">
-    <arg name="pointcloud_topic" value="$(param pointcloud_seg/pointcloud_topic)" />
-    <arg name="mask_topic" value="$(param pointcloud_seg/mask_topic)" />
-    <arg name="rgb_info_topic" value="$(param pointcloud_seg/rgb_info_topic)" />
+    <arg name="pointcloud_topic" value="$(param pointcloud_topic)" />
+    <arg name="mask_topic" value="$(param visual_semantics/mask_topic)" />
+    <arg name="rgb_info_topic" value="$(param color_info_topic)" />
+    <!-- <arg name="semantic_instances_topic" value="$(param semantic_instances_topic)"/>
+    <arg name="visual_cloud_topic" value="$(param visual_cloud_topic)"/>
+    <arg name="inst_class_topic" value="$(param inst_class_topic)"/>
+    <arg name="cost_attribute" value="$(param cost_attribute)"/> -->
   </include>
 
   <!-- goal_projector -->
-  <node pkg="tvss_nav" type="goal_projector.py" name="goal_projector" output="screen" cwd="node"/>
+  <include file="$(find tvss_nav)/launch/goal_projector.launch">
+    <arg name="camera_info_topic" value="$(param color_info_topic)" />
+    <arg name="depth_image_topic" value="$(param aligned_depth_topic)" />
+    <arg name="pixel_goal_topic" value="$(param subgoal_sampler/pixel_goal_topic)" />
+    <arg name="goal_pose_topic" value="$(param goal_projector/goal_pose_topic)" />
+    <arg name="target_frame" value="$(param goal_projector/target_frame)" />
+  </include>
 
   <!-- rviz -->
   <include file="$(find tvss_nav)/launch/rviz.launch">

@@ -4,8 +4,10 @@
   <arg name="mask_topic"           default="/segmented_image/mask" />
   <arg name="rgb_info_topic"       default="/camera/color/camera_info" />
 
-  <arg name="semantic_instances_topic" default="/instance_array" />
-  <arg name="visual_cloud_topic"      default="/masked_cloud" />
+  <arg name="semantic_instances_topic" default="/instance_array"/>
+  <arg name="visual_cloud_topic" default="/masked_cloud"/>
+  <arg name="inst_class_topic" default="/instance_class_dict"/>
+  <arg name="cost_attribute" default="/cost_attributes"/>
 
   <arg name="voxel_leaf_size" default="0.1" />
 
@@ -14,7 +16,9 @@
     <param name="mask_topic"           value="$(arg mask_topic)" />
     <param name="rgb_info_topic"       value="$(arg rgb_info_topic)" />
     <param name="semantic_instances_topic" value="$(arg semantic_instances_topic)" />
-    <param name="visual_cloud_topic"       value="$(arg visual_cloud_topic)" />
+    <param name="visual_cloud_topic" value="$(arg visual_cloud_topic)" />
+    <param name="inst_class_topic" value="$(arg inst_class_topic)" />
+    <param name="cost_attribute" value="$(arg cost_attribute)" />
     <param name="voxel_leaf_size" value="$(arg voxel_leaf_size)" />
   </node>
 </launch>

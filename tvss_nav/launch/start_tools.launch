@@ -10,9 +10,19 @@
 
   <!-- pointcloud_seg -->
   <include file="$(find tvss_nav)/launch/utils/pointcloud_seg.launch">
-    <arg name="pointcloud_topic" value="/camera/depth/color/points" />
-    <arg name="mask_topic" value="/segmented_image/mask" />
-    <arg name="rgb_info_topic" value="/camera/color/camera_info" />
+    <arg name="pointcloud_topic" value="$(param pointcloud_topic)" />
+    <arg name="mask_topic" value="$(param visual_semantics/mask_topic)" />
+    <arg name="rgb_info_topic" value="$(param color_info_topic)" />
+    <!-- <arg name="semantic_instances_topic" value="$(param semantic_instances_topic)"/>
+    <arg name="visual_cloud_topic" value="$(param visual_cloud_topic)"/>
+    <arg name="inst_class_topic" value="$(param inst_class_topic)"/>
+    <arg name="cost_attribute" value="$(param cost_attribute)"/> -->
+  </include>
+
+  <!-- rviz -->
+  <include file="$(find tvss_nav)/launch/rviz.launch">
+    <arg name="show_rviz" value="true" />
+    <arg name="rviz_file" value="visual_semantic" />
   </include>
 
 </launch>

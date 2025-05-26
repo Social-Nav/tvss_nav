@@ -1,8 +1,10 @@
+import base64
 import cv2
 import numpy as np
-import base64
 import roslibpy
+import threading
 import time
+
 
 def decode_compressed_image(msg):
     """
@@ -96,3 +98,16 @@ def create_publisher(ros, topic_name, msg_type):
     Create and return a ROS publisher.
     """
     return roslibpy.Topic(ros, topic_name, msg_type)
+
+def get_param(ros, name, default):
+    param = roslibpy.Param(ros, name)
+    result = {}
+    event = threading.Event()
+
+    def callback(value):
+        result['value'] = value
+        event.set()
+
+    param.get(callback)
+    event.wait(timeout=1.0)
+    return result.get('value', default)

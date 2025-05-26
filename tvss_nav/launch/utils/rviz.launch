@@ -1,9 +1,8 @@
 <launch>
     <arg name="show_rviz" default="true" doc="Wether to show rviz or not" />
-    <arg name="rviz_file" default="nav_LP" doc="Rviz config file to load" />
+    <arg name="rviz_file" default="" doc="Rviz config file to load" />
 
-    <node 
-        name="rviz" 
+    <node name="rviz" 
         pkg="rviz" 
         type="rviz"
         args="-d $(find tvss_nav)/rviz/$(arg rviz_file).rviz"

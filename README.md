@@ -18,7 +18,7 @@
     conda activate gsam2
     # Follow the instructions on https://github.com/IDEA-Research/Grounded-SAM-2/blob/main/INSTALL.md to install the dependencies
     cd ./scripts/tvss_nav/tools/grounded_sam2
-    python grounded_sam2_ros.py
+    python gsam2_ros.py
     ```
 
 ### Steps to run instance 3D mask generation and cost-map projection

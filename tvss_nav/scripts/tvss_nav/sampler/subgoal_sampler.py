@@ -3,7 +3,6 @@ import cv2
 import json
 import numpy as np
 import os
-import re
 import signal
 import sys
 import threading
@@ -36,26 +35,22 @@ class SubgoalSampler:
         # Initialize flags
         self.shutdown_flag = False
         self.debug = debug
-        self.paused = True  # Start in paused state, waiting for initial query
-        
-        # Timer settings
+        self.paused = True
         self.update_period = update_period
         self.last_update_time = 0
-        
-        # Context management
+
         self.message_history: List[Dict[str, Any]] = []
-        self.max_history = 4  # Maximum number of message pairs to keep
-        self.initial_task = None  # Store the initial task description
-        
-        # Threading control
+        self.max_history = 4
+        self.initial_task = None
+
         self.input_event = threading.Event()
         self.user_input = None
         self.input_thread = None
-        
-        # Setup ROS connection
+
         log("Starting SubgoalSampler node...")
         self.ros = roslibpy.Ros(host='localhost', port=9090)
         self.ros.run()
+
         if not self.ros.is_connected:
             log("Waiting for ROS connection...")
             while not self.ros.is_connected and not self.shutdown_flag:
@@ -64,51 +59,59 @@ class SubgoalSampler:
                 log("✓ Connected to ROS")
             else:
                 raise ConnectionError("Failed to connect to ROS")
-        
-        # Initialize sam input text publishers
-        self.text_publisher = roslibpy.Topic(self.ros, '/text_input', 'std_msgs/String')
-        
-        # Load configuration
+
+        # === Load topic names from ROS parameters ===
+        self.camera_topic = self.get_param('/color_compressed_topic', '/camera/color/image_raw/compressed')
+        self.camera_info_topic = self.get_param('/color_info_topic', '/camera/color/camera_info')
+        self.goal_topic = self.get_param('/subgoal_sampler/goal_topic', '/pixel_subgoal')
+
+        # Load configuration and prompt
         config_path = os.path.join(os.path.dirname(__file__), 'config.json')
         with open(config_path, 'r') as f:
             self.config = json.load(f)
 
-        # Initialize OpenAI client
-        # self.api_key = os.getenv('OPENAI_API_KEY')
-        self.api_key = os.getenv('ARK_API_KEY')
-        if not self.api_key:
-            raise ValueError("api key environment variable not set")
-        # self.client = OpenAI(api_key=self.api_key)
-        self.client = OpenAI(base_url="https://ark.cn-beijing.volces.com/api/v3", api_key=self.api_key)
-        
-        # Load system prompt
         prompt_path = os.path.join(os.path.dirname(__file__), 'system_prompt.txt')
         with open(prompt_path, 'r') as f:
             self.system_prompt = f.read().strip()
-        
-        # Initialize image queue and latest image
+
+        self.api_key = os.getenv('ARK_API_KEY')
+        if not self.api_key:
+            raise ValueError("API key environment variable not set")
+        self.client = OpenAI(base_url="https://ark.cn-beijing.volces.com/api/v3", api_key=self.api_key)
+
+        # ROS topics
         self.latest_image = None
         self.image_lock = threading.Lock()
         self.received_first_image = False
-        
-        # Subscribe to compressed image topic
-        self.image_sub = roslibpy.Topic(self.ros, '/camera/color/image_raw/compressed', 'sensor_msgs/CompressedImage')
+
+        self.image_sub = roslibpy.Topic(self.ros, self.camera_topic, 'sensor_msgs/CompressedImage')
         self.image_sub.subscribe(self.image_callback)
-        log("Subscribing to camera topic: /camera/color/image_raw/compressed")
-        
-        self.camera_info = None
-        self.caminfo_sub = roslibpy.Topic(self.ros, '/camera/color/camera_info', 'sensor_msgs/CameraInfo')
+        log(f"Subscribing to camera topic: {self.camera_topic}")
+
+        self.caminfo_sub = roslibpy.Topic(self.ros, self.camera_info_topic, 'sensor_msgs/CameraInfo')
         self.caminfo_sub.subscribe(self.caminfo_callback)
-        log("Subscribing to camera info topic: /camera/color/camera_info")
-        
-        self.goal_pub = roslibpy.Topic(self.ros, '/pixel_subgoal', 'geometry_msgs/PointStamped')
+        log(f"Subscribing to camera info topic: {self.camera_info_topic}")
+
+        self.goal_pub = roslibpy.Topic(self.ros, self.goal_topic, 'geometry_msgs/PointStamped')
 
         self.processing_image_timestamp = None
         self.query_counter = 0
-        
-        # Setup signal handlers
+
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
+
+    def get_param(self, name, default):
+        param = roslibpy.Param(self.ros, name)
+        result = {}
+        event = threading.Event()
+
+        def callback(value):
+            result['value'] = value
+            event.set()
+
+        param.get(callback)
+        event.wait(timeout=1.0)
+        return result.get('value', default)
 
     def shutdown_callback(self):
         """Shutdown callback"""
