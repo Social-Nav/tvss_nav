@@ -9,7 +9,7 @@ windows:
           - source ~/mambaforge/etc/profile.d/conda.sh && conda activate gsam2 && cd ../../tvss_nav/scripts/tvss_nav && python -m vlm.vlm
         - gsam2:
           - source ~/mambaforge/etc/profile.d/conda.sh && conda activate gsam2 && cd ../../tvss_nav/scripts/tvss_nav/tools/grounded_sam2 && python gsam2_ros_topic.py
-        - subgoal_sampler
+        - subgoal_sampler:
           - source ~/mambaforge/etc/profile.d/conda.sh && conda activate gsam2 && cd ../../tvss_nav/scripts/tvss_nav && python -m sampler.subgoal_sampler
-        - goal_projector
+        - goal_projector:
           - cd ../../tvss_nav/scripts/tvss_nav/utils && python goal_projector.py

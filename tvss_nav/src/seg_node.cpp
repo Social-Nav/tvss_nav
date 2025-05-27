@@ -49,14 +49,15 @@ public:
     PointCloudSegNode(ros::NodeHandle& nh, ros::NodeHandle& pnh)
         : nh_(nh), tf_buffer_(), tf_listener_(tf_buffer_)
     {
-        pnh.param<std::string>("pointcloud_topic", pointcloud_topic_, "/camera/depth/color/points");
-        pnh.param<std::string>("mask_topic", mask_topic_, "/segmented_image/mask");
-        pnh.param<std::string>("rgb_info_topic", rgb_info_topic_, "/camera/color/camera_info");
-        pnh.param<std::string>("semantic_instances_topic", instance_array_topic_, "/instance_array");
-        pnh.param<std::string>("visual_cloud_topic", visual_cloud_topic_, "/masked_cloud");
-        pnh.param<std::string>("inst_class_topic", instance_class_topic_, "/instance_class_dict");
-        pnh.param<std::string>("cost_attribute", cost_attribute_topic_, "/cost_attributes");
-        pnh.param<double>("voxel_leaf_size", voxel_leaf_size_, 0.1);
+        nh.param("/tvss_nav/pointcloud_topic", pointcloud_topic_, std::string("/camera/depth/color/points"));
+        nh.param("/tvss_nav/mask_topic", mask_topic_, std::string("/segmented_image/mask"));
+        nh.param("/tvss_nav/color_info_topic", rgb_info_topic_, std::string("/camera/color/camera_info"));
+        nh.param("/tvss_nav/semantic_instances_topic", instance_array_topic_, std::string("/instance_array"));
+        nh.param("/tvss_nav/visual_cloud_topic", visual_cloud_topic_, std::string("/masked_cloud"));
+        nh.param("/tvss_nav/inst_class_topic", instance_class_topic_, std::string("/instance_class_dict"));
+        nh.param("/tvss_nav/cost_attribute_topic", cost_attribute_topic_, std::string("/cost_attributes"));
+
+        pnh.param("voxel_leaf_size", voxel_leaf_size_, 0.1);
 
         cloud_sub_.subscribe(nh_, pointcloud_topic_, 1);
         mask_sub_.subscribe(nh_, mask_topic_, 1);
@@ -137,7 +138,7 @@ private:
         label_to_class_map_.clear();
         Json::Reader reader;
         Json::Value root;
-        if (!reader.parse(class_msg->str, root)) {
+        if (!reader.parse(class_msg->data, root)) {
             ROS_WARN("Failed to parse instance_class_dict JSON");
         } else {
             for (const auto& label_str : root.getMemberNames()) {

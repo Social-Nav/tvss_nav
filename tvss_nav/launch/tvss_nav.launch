@@ -1,12 +1,16 @@
 <launch>
+  <!--args-->
   <arg name="show_rviz" default="true" />
   <arg name="rviz_file" default="common" />
 
-  <rosparam file="$(find tvss_nav)/cfg/common.yaml" command="load" />
+  <!-- load static parameters-->
+  <arg name="shared_param_cfg" default="common.yaml" />
+	<rosparam command="load" file="$(find tvss_nav)/config/$(arg shared_param_cfg)" />
 
   <!-- rosbridge -->
   <include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch" />
 
+  <!-- depth to cloud -->
   <!-- <node pkg="nodelet" type="nodelet" name="depth_to_cloud" args="standalone depth_image_proc/point_cloud_xyz">
     <remap from="image_rect" to="/camera/aligned_depth_to_color/image_raw"/>
     <remap from="camera_info" to="/camera/color/camera_info"/>
@@ -14,27 +18,13 @@
   </node> -->
 
   <!-- pointcloud_seg -->
-  <include file="$(find tvss_nav)/launch/utils/pointcloud_seg.launch">
-    <arg name="pointcloud_topic" value="$(param pointcloud_topic)" />
-    <arg name="mask_topic" value="$(param visual_semantics/mask_topic)" />
-    <arg name="rgb_info_topic" value="$(param color_info_topic)" />
-    <!-- <arg name="semantic_instances_topic" value="$(param semantic_instances_topic)"/>
-    <arg name="visual_cloud_topic" value="$(param visual_cloud_topic)"/>
-    <arg name="inst_class_topic" value="$(param inst_class_topic)"/>
-    <arg name="cost_attribute" value="$(param cost_attribute)"/> -->
-  </include>
+  <include file="$(find tvss_nav)/launch/utils/pointcloud_seg.launch" />
 
   <!-- goal_projector -->
-  <include file="$(find tvss_nav)/launch/goal_projector.launch">
-    <arg name="camera_info_topic" value="$(param color_info_topic)" />
-    <arg name="depth_image_topic" value="$(param aligned_depth_topic)" />
-    <arg name="pixel_goal_topic" value="$(param subgoal_sampler/pixel_goal_topic)" />
-    <arg name="goal_pose_topic" value="$(param goal_projector/goal_pose_topic)" />
-    <arg name="target_frame" value="$(param goal_projector/target_frame)" />
-  </include>
+  <include file="$(find tvss_nav)/launch/utils/goal_projector.launch" />
 
   <!-- rviz -->
-  <include file="$(find tvss_nav)/launch/rviz.launch">
+  <include file="$(find tvss_nav)/launch/utils/rviz.launch">
     <arg name="show_rviz" value="$(arg show_rviz)" />
     <arg name="rviz_file" value="$(arg rviz_file)" />
   </include>

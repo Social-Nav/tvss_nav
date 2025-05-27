@@ -1,0 +1,26 @@
+tvss_nav:
+
+  # ================== Camera topics ==================
+  color_topic: "/camera/color/image_raw"
+  color_compressed_topic: "/camera/color/image_raw/compressed"
+  color_info_topic: "/camera/color/camera_info"
+  aligned_depth_topic: "/camera/aligned_depth_to_color/image_raw"
+  pointcloud_topic: "/camera/depth/color/points"
+
+  # ================== Published by gsam2 ros ==================
+  mask_topic: "/segmented_image/mask"
+  inst_class_topic: "/instance_class_dict"
+
+  # ================== Published by (point cloud) seg_node ==================
+  semantic_instances_topic: "/instance_array"
+  visual_cloud_topic: "/masked_cloud"
+
+  # ================== Published by vlm ==================
+  text_input_topic: "/text_input"
+  cost_attribute_topic: "/cost_attributes"
+
+  # ================== Published by subgoal_sampler ==================
+  pixel_goal_topic: "/pixel_subgoal"
+
+  # ================== Published by goal_projector ==================
+  goal_pose_topic: "/goalpose"

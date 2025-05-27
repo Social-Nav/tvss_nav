@@ -243,7 +243,7 @@ def main():
     OUTPUT_IMAGE_TOPIC = '/segmented_image'
     IMAGE_MSG_TYPE = "CompressedImage"  # "CompressedImage" or "Image"
     # IMAGE_MSG_TYPE = "Image"
-    RESET_TOPIC = '/scenario_reset' # from arena task_manager
+    ARENA_RESET_TOPIC = '/scenario_reset' # from arena task_manager
     TEXT_INPUT_TOPIC = '/text_input'  # Topic for receiving text prompts
 
     ENABLE_IMAGE_PUBLISH = True
@@ -314,7 +314,7 @@ def main():
     rgb_msg_type = 'sensor_msgs/CompressedImage' if IMAGE_MSG_TYPE=="CompressedImage" else 'sensor_msgs/Image'
     rgb_subscriber = create_subscriber(ros, INPUT_IMAGE_TOPIC, rgb_msg_type, image_callback)
     text_subscriber = create_subscriber(ros, TEXT_INPUT_TOPIC, 'std_msgs/String', handle_text_input)
-    reset_subscriber = create_subscriber(ros, RESET_TOPIC, 'std_msgs/Int16', task_reset_signal)
+    reset_subscriber = create_subscriber(ros, ARENA_RESET_TOPIC, 'std_msgs/Int16', task_reset_signal)
     
     compressed_publisher = create_publisher(ros, OUTPUT_IMAGE_TOPIC + '/compressed', 'sensor_msgs/CompressedImage')
     mask_publisher = create_publisher(ros, OUTPUT_IMAGE_TOPIC + '/mask', 'sensor_msgs/CompressedImage')
@@ -499,7 +499,7 @@ def publish_instance_class_dict(publisher, id_to_objects, timestamp, frame_link)
             'stamp': {'secs': secs, 'nsecs': nsecs},
             'frame_id': frame_link
         },
-        'str': json.dumps(id_to_objects)
+        'data': json.dumps(id_to_objects)
     }
 
     # Publish as roslibpy.Message

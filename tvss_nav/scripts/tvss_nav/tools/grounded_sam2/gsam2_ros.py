@@ -256,7 +256,7 @@ def main():
     OUTPUT_IMAGE_TOPIC = '/segmented_image'
     IMAGE_MSG_TYPE = "CompressedImage"  # "CompressedImage" or "Image"
     # IMAGE_MSG_TYPE = "Image"
-    RESET_TOPIC = '/scenario_reset' # from arena task_manager
+    ARENA_RESET_TOPIC = '/scenario_reset' # from arena task_manager
 
     ENABLE_IMAGE_PUBLISH = True
     DEBUG_MODE = False
@@ -264,7 +264,6 @@ def main():
     WIDTH = 640
 
     # Model and checkpoint settings
-
     SAM2_CHECKPOINT = "./checkpoints/sam2.1_hiera_large.pt"
     MODEL_CFG = "configs/sam2.1/sam2.1_hiera_l.yaml"
     MODEL_ID = "IDEA-Research/grounding-dino-base"
@@ -324,7 +323,7 @@ def main():
     ros = setup_ros_bridge()
     rgb_msg_type = 'sensor_msgs/CompressedImage' if IMAGE_MSG_TYPE=="CompressedImage" else 'sensor_msgs/Image'
     rgb_subscriber = create_subscriber(ros, INPUT_IMAGE_TOPIC, rgb_msg_type, image_callback)
-    reset_subscriber = create_subscriber(ros, RESET_TOPIC, 'std_msgs/Int16', task_reset_signal)
+    reset_subscriber = create_subscriber(ros, ARENA_RESET_TOPIC, 'std_msgs/Int16', task_reset_signal)
     
     publisher_compressed = create_publisher(ros, OUTPUT_IMAGE_TOPIC + '/compressed', 'sensor_msgs/CompressedImage')
     publisher_mask = create_publisher(ros, OUTPUT_IMAGE_TOPIC + '/mask', 'sensor_msgs/CompressedImage')

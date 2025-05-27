@@ -1,15 +1,5 @@
 <launch>
-  <arg name="camera_info_topic" default="/camera/color/camera_info" />
-  <arg name="depth_image_topic" default="/camera/aligned_depth_to_color/image_raw" />
-  <arg name="pixel_goal_topic" default="/pixel_subgoal" />
-  <arg name="goal_pose_topic" default="/goalpose" />
-  <arg name="target_frame" default="map" />
-
-  <node pkg="tvss_nav" type="goal_projector.py" name="goal_projector" output="screen">
-    <param name="camera_info_topic" value="$(arg camera_info_topic)" />
-    <param name="depth_image_topic" value="$(arg depth_image_topic)" />
-    <param name="pixel_goal_topic" value="$(arg pixel_goal_topic)" />
-    <param name="goal_pose_topic" value="$(arg goal_pose_topic)" />
-    <param name="target_frame" value="$(arg target_frame)" />
+  <node name="goal_projector" pkg="tvss_nav" type="goal_projector.py" output="screen">
+    <rosparam file="$(find tvss_nav)/config/goal_projector.yaml" command="load" />
   </node>
 </launch>

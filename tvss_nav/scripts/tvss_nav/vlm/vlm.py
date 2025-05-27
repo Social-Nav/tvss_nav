@@ -58,9 +58,9 @@ class VLM:
                 raise ConnectionError("Failed to connect to ROS")
 
         # ==== Read topic names from ROS params ====
-        self.camera_topic = self.get_param('/color_topic', '/camera/color/image_raw/compressed')
-        self.text_topic = self.get_param('/vlm/text_input_topic', '/text_input')
-        self.cost_attribute_topic = self.get_param('/vlm/cost_attribute_topic', '/cost_attributes')
+        self.camera_topic = self.get_param('/tvss_nav/color_compressed_topic', '/camera/color/image_raw/compressed')
+        self.text_topic = self.get_param('/tvss_nav/text_input_topic', '/text_input')
+        self.cost_attribute_topic = self.get_param('/tvss_nav/cost_attribute_topic', '/cost_attributes')
 
         # === Publishers ===
         self.text_publisher = roslibpy.Topic(self.ros, self.text_topic, 'std_msgs/String')

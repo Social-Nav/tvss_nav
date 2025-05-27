@@ -61,9 +61,9 @@ class SubgoalSampler:
                 raise ConnectionError("Failed to connect to ROS")
 
         # === Load topic names from ROS parameters ===
-        self.camera_topic = self.get_param('/color_compressed_topic', '/camera/color/image_raw/compressed')
-        self.camera_info_topic = self.get_param('/color_info_topic', '/camera/color/camera_info')
-        self.goal_topic = self.get_param('/subgoal_sampler/goal_topic', '/pixel_subgoal')
+        self.camera_topic = self.get_param('/tvss_nav/color_compressed_topic', '/camera/color/image_raw/compressed')
+        self.camera_info_topic = self.get_param('/tvss_nav/color_info_topic', '/camera/color/camera_info')
+        self.goal_topic = self.get_param('/tvss_nav/pixel_goal_topic', '/pixel_subgoal')
 
         # Load configuration and prompt
         config_path = os.path.join(os.path.dirname(__file__), 'config.json')
