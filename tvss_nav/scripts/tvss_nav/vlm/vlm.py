@@ -59,7 +59,7 @@ class VLM:
 
         # ==== Read topic names from ROS params ====
         self.camera_topic = self.get_param('/tvss_nav/color_compressed_topic', '/camera/color/image_raw/compressed')
-        self.text_topic = self.get_param('/tvss_nav/text_input_topic', '/text_input')
+        self.text_topic = self.get_param('/tvss_nav/segment_prompt_topic', '/segment_prompt')
         self.cost_attribute_topic = self.get_param('/tvss_nav/cost_attribute_topic', '/cost_attributes')
 
         # === Publishers ===

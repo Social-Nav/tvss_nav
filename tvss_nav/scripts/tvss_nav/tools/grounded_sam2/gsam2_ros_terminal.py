@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 import roslibpy
 import supervision as sv
+import threading
 import torch
 from PIL import Image
 from omegaconf import OmegaConf
@@ -30,7 +31,7 @@ from utils.ros_utils import (
     setup_ros_bridge,
     create_subscriber,
     create_publisher,
-    get_param
+    get_ros_param
 )
 
 class NoObjectDetected(Exception):
@@ -232,6 +233,18 @@ def visualize_detections(frame_resized, out_obj_ids, out_mask_logits, id_to_obje
     overlay = mask_annotator.annotate(scene=overlay, detections=detections)
     return overlay
 
+# Function moved outside of main
+def input_thread_function(callback_fn):
+    """
+    Thread function that reads text input from user.
+    """
+    while True:
+        text = input("Enter text prompt ('q' to quit): ")
+        if text.lower() == 'q':
+            print("Exiting input thread")
+            break
+        callback_fn(text)
+
 #####################
 # Main function using exposed functions with full functionality
 #####################
@@ -243,8 +256,7 @@ def main():
     OUTPUT_IMAGE_TOPIC = '/segmented_image'
     IMAGE_MSG_TYPE = "CompressedImage"  # "CompressedImage" or "Image"
     # IMAGE_MSG_TYPE = "Image"
-    ARENA_RESET_TOPIC = '/scenario_reset' # from arena task_manager
-    TEXT_INPUT_TOPIC = '/text_input'  # Topic for receiving text prompts
+    ARENA_RESET_TOPIC = '/scenario_reset' # published by arena task_manager
 
     ENABLE_IMAGE_PUBLISH = True
     DEBUG_MODE = False
@@ -296,12 +308,10 @@ def main():
     #####################
     # Handle text input
     #####################
-    def handle_text_input(msg):
+    def handle_text_input(text):
         nonlocal text_prompt, restart_detection
-        text_prompt = msg['data']  # Extract string from ROS message
+        text_prompt = text
         restart_detection = True
-        if DEBUG_MODE:
-            print(f"\n[INFO] Received text prompt: {text_prompt}")
 
     def task_reset_signal(msg):
         nonlocal global_reset_signal
@@ -323,7 +333,6 @@ def main():
         
     inst_class_publisher = create_publisher(ros, '/instance_class_dict', 'tvss_nav/StringStamped')
 
-
     #####################
     # Model initialization
     #####################
@@ -331,6 +340,11 @@ def main():
     if torch.cuda.get_device_properties(0).major >= 8:
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
+
+    # Start the input thread
+    input_t = threading.Thread(target=input_thread_function, args=(handle_text_input,))
+    input_t.daemon = True
+    input_t.start()
 
     camera_predictor = build_sam2_camera_predictor(MODEL_CFG, SAM2_CHECKPOINT)
     sam2_image_model = build_sam2(MODEL_CFG, SAM2_CHECKPOINT, device=device)

@@ -7,7 +7,6 @@ import cv2
 import numpy as np
 import roslibpy
 import supervision as sv
-import threading
 import torch
 from PIL import Image
 from omegaconf import OmegaConf
@@ -31,7 +30,7 @@ from utils.ros_utils import (
     setup_ros_bridge,
     create_subscriber,
     create_publisher,
-    get_param
+    get_ros_param
 )
 
 class NoObjectDetected(Exception):
@@ -233,102 +232,140 @@ def visualize_detections(frame_resized, out_obj_ids, out_mask_logits, id_to_obje
     overlay = mask_annotator.annotate(scene=overlay, detections=detections)
     return overlay
 
-# Function moved outside of main
-def input_thread_function(callback_fn):
-    """
-    Thread function that reads text input from user.
-    """
-    while True:
-        text = input("Enter text prompt ('q' to quit): ")
-        if text.lower() == 'q':
-            print("Exiting input thread")
-            break
-        callback_fn(text)
-
 #####################
 # Main function using exposed functions with full functionality
 #####################
 def main():
+    DEBUG_MODE = False
+    
+    #####################
+    # ROSBridge Setup
+    #####################
+    ros = setup_ros_bridge()
+    
     #####################
     # Configurable Parameters
     #####################
-    INPUT_IMAGE_TOPIC = '/camera/color/image_raw/compressed'
-    OUTPUT_IMAGE_TOPIC = '/segmented_image'
-    IMAGE_MSG_TYPE = "CompressedImage"  # "CompressedImage" or "Image"
+    INPUT_IMAGE_TYPE = "CompressedImage"  # "CompressedImage" or "Image"
     # IMAGE_MSG_TYPE = "Image"
-    ARENA_RESET_TOPIC = '/scenario_reset' # from arena task_manager
+    
+    # Load ros parameters
+    if INPUT_IMAGE_TYPE == "CompressedImage":
+        INPUT_IMAGE_TOPIC = get_ros_param(ros, '/tvss_nav/color_compressed_topic', '/camera/color/image_raw/compressed')
+    elif INPUT_IMAGE_TYPE == "Image":
+        INPUT_IMAGE_TOPIC = get_ros_param(ros, '/tvss_nav/color_topic', '/camera/color/image_raw')
+        print("[Warning] Uncompressed images may lead to serious delays. Consider switching to CompressedImage format.")
+    else:
+        raise ValueError(f"Unsupported INPUT_IMAGE_TYPE: {INPUT_IMAGE_TYPE}")
+    CAMERA_INFO_TOPIC = get_ros_param(ros, '/tvss_nav/color_info_topic', '/camera/color/camera_info')
+    VISUAL_MASK_TOPIC = get_ros_param(ros, '/tvss_nav/visual_mask_topic', '/segmented_image/visual_mask/compressed')
+    LABEL_MASK_TOPIC = get_ros_param(ros, '/tvss_nav/label_mask_topic', '/segmented_image/label_mask/compressed')
+    SEGMENT_PROMPT_TOPIC = get_ros_param(ros, '/tvss_nav/segment_prompt_topic', '/segment_prompt')
+    INSTANCE_CLASS_TOPIC = get_ros_param(ros, '/tvss_nav/inst_class_topic', '/instance_class_dict')
+    ARENA_RESET_TOPIC = '/scenario_reset'    # published by arena task_manager
 
-    ENABLE_IMAGE_PUBLISH = True
-    DEBUG_MODE = False
     HEIGHT = 480
     WIDTH = 640
 
     # Model and checkpoint settings
-    SAM2_CHECKPOINT = "./checkpoints/sam2.1_hiera_large.pt"
+    SAM2_CHECKPOINT = "checkpoints/sam2.1_hiera_large.pt"
     MODEL_CFG = "configs/sam2.1/sam2.1_hiera_l.yaml"
     MODEL_ID = "IDEA-Research/grounding-dino-base"
 
-    model_name = os.path.splitext(os.path.basename(MODEL_CFG))[0]  # sam2.1_hiera_large
-    engine_name = model_name.replace("sam2.1_", "") + "_image_encoder.trt"
-    os.environ["SAM2_TRT_ENGINE_PATH"] = os.path.join(os.environ["PWD"], "tensorrt", "trt", engine_name)
-
     cfg = OmegaConf.load("sam2/" + MODEL_CFG)
     use_trt = cfg.model.get("use_trt", None)
-    print(f"[Config] use_trt: {use_trt}")
+    
+    if use_trt:
+        model_name = os.path.splitext(os.path.basename(MODEL_CFG))[0]  # "sam2.1_hiera_large"
+        trt_engine_name = model_name.replace("sam2.1_", "") + "_image_encoder.trt"
+        os.environ["SAM2_TRT_ENGINE_PATH"] = os.path.join(os.path.dirname(__file__), "tensorrt", "trt", trt_engine_name)
+
+    # parameters log in the terminal
+    print("\n[Info] SAM2 Segmentation Node Configuration:")
+    print(f"  - Input image type         : {INPUT_IMAGE_TYPE}")
+    print(f"  - Input image topic        : {INPUT_IMAGE_TOPIC}")
+    print(f"  - Camera info topic        : {CAMERA_INFO_TOPIC}")
+    print(f"  - Visual mask topic        : {VISUAL_MASK_TOPIC}")
+    print(f"  - Label mask topic         : {LABEL_MASK_TOPIC}")
+    print(f"  - Segment prompt topic     : {SEGMENT_PROMPT_TOPIC}")
+    print(f"  - Instance class topic     : {INSTANCE_CLASS_TOPIC}")
+    print(f"  - Arena reset topic        : {ARENA_RESET_TOPIC}")
+    print(f"  - Default image resolution : {WIDTH}x{HEIGHT}")
+    print(f"  - SAM2 model config        : {MODEL_CFG}")
+    print(f"  - SAM2 checkpoint          : {SAM2_CHECKPOINT}")
+    print(f"  - GroundingDINO model ID   : {MODEL_ID}")
+    print(f"  - TensorRT enabled         : {use_trt}")
+    if use_trt:
+        print(f"  - TensorRT engine name     : {trt_engine_name}")
+    print()
 
     #####################
     # State variables (now local to main)
     #####################
+    camera_info_received = False
     global_msg = None
     msg_lock = Lock()
     text_prompt = None
     restart_detection = False
     global_reset_signal = False
 
+    #####################
+    # ROS Subscribers and Publishers
+    #####################
     def image_msg_parser(msg):
-        if IMAGE_MSG_TYPE == "CompressedImage":
+        if INPUT_IMAGE_TYPE == "CompressedImage":
             frame = decode_compressed_image(msg)
-        elif IMAGE_MSG_TYPE == "Image":
+        elif INPUT_IMAGE_TYPE == "Image":
             frame = decode_image(msg, HEIGHT, WIDTH)
         else:
-            print("Unsupported IMAGE_MSG_TYPE:", IMAGE_MSG_TYPE)
+            print("Unsupported IMAGE_MSG_TYPE:", INPUT_IMAGE_TYPE)
         frame_ts = [msg["header"]["stamp"]['secs'], msg["header"]["stamp"]['nsecs']]
         frame_link = msg["header"]["frame_id"]
 
         return frame, frame_ts, frame_link
 
-    #####################
-    # Image callback with closure
-    #####################
     def image_callback(msg):
         nonlocal global_msg
+        if not camera_info_received: 
+            print("[Warning] Camera info not received yet. Waiting for camera info...")
+            return
         with msg_lock:
             global_msg = msg
-
-    #####################
-    # Handle text input
-    #####################
-    def handle_text_input(text):
+    
+    def handle_camera_info(msg):
+        nonlocal HEIGHT, WIDTH, camera_info_received
+        if 'height' in msg and 'width' in msg:
+            HEIGHT = msg['height']
+            WIDTH = msg['width']
+            if not camera_info_received:
+                print(f"\n[INFO] Camera info updated according to ros topic \"{CAMERA_INFO_TOPIC}\": Height={HEIGHT}, Width={WIDTH}")
+            camera_info_received = True
+        else:
+            print("[Warning] Camera info message does not contain height/width. Using default values.")
+        
+    def handle_text_prompt(msg):
         nonlocal text_prompt, restart_detection
-        text_prompt = text
+        text_prompt = msg['data']  # Extract string from ROS message
         restart_detection = True
+        if DEBUG_MODE:
+            print(f"\n[INFO] Received text prompt: {text_prompt}")
 
     def task_reset_signal(msg):
         nonlocal global_reset_signal
         global_reset_signal = True
 
-    #####################
-    # ROSBridge Setup
-    #####################
-    ros = setup_ros_bridge()
-    rgb_msg_type = 'sensor_msgs/CompressedImage' if IMAGE_MSG_TYPE=="CompressedImage" else 'sensor_msgs/Image'
-    rgb_subscriber = create_subscriber(ros, INPUT_IMAGE_TOPIC, rgb_msg_type, image_callback)
+    # subscribers 
+    rgb_subscriber = create_subscriber(ros, INPUT_IMAGE_TOPIC, 'sensor_msgs/' + INPUT_IMAGE_TYPE, image_callback)
+    camera_info_subscriber = create_subscriber(ros, CAMERA_INFO_TOPIC, 'sensor_msgs/CameraInfo', handle_camera_info)
+    text_subscriber = create_subscriber(ros, SEGMENT_PROMPT_TOPIC, 'std_msgs/String', handle_text_prompt)
     reset_subscriber = create_subscriber(ros, ARENA_RESET_TOPIC, 'std_msgs/Int16', task_reset_signal)
+    # publishers
+    overlay_publisher = create_publisher(ros, VISUAL_MASK_TOPIC, 'sensor_msgs/CompressedImage')
+    mask_publisher = create_publisher(ros, LABEL_MASK_TOPIC, 'sensor_msgs/CompressedImage')
+    inst_class_publisher = create_publisher(ros, INSTANCE_CLASS_TOPIC, 'tvss_nav/StringStamped')
     
-    publisher_compressed = create_publisher(ros, OUTPUT_IMAGE_TOPIC + '/compressed', 'sensor_msgs/CompressedImage')
-    publisher_mask = create_publisher(ros, OUTPUT_IMAGE_TOPIC + '/mask', 'sensor_msgs/CompressedImage')
     if DEBUG_MODE:
-        print(f"Created publisher for topic: {OUTPUT_IMAGE_TOPIC}/compressed")
+        print(f"Created publisher for topic: {VISUAL_MASK_TOPIC}")
 
     #####################
     # Model initialization
@@ -337,11 +374,6 @@ def main():
     if torch.cuda.get_device_properties(0).major >= 8:
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
-
-    # Start the input thread
-    input_t = threading.Thread(target=input_thread_function, args=(handle_text_input,))
-    input_t.daemon = True
-    input_t.start()
 
     camera_predictor = build_sam2_camera_predictor(MODEL_CFG, SAM2_CHECKPOINT)
     sam2_image_model = build_sam2(MODEL_CFG, SAM2_CHECKPOINT, device=device)
@@ -354,7 +386,8 @@ def main():
     sam2_masks = MaskDictionaryModel()
 
     rate = 0.1
-    detection_timeout = 3000
+    detection_timeout = 5
+    # detection_timeout = np.inf
 
     last_detect_time = time.time()
 
@@ -447,24 +480,16 @@ def main():
                     # Optionally update other fields like bounding box if required
                     obj_info.update_box()
 
-            overlay = visualize_detections(frame_resized, out_obj_ids, out_mask_logits, id_to_objects)
-            publish_mask(publisher_mask, frame_resized, out_obj_ids, out_mask_logits, locked_frame_ts, locked_frame_link)
-            cv2.imshow("Segmented Frame", overlay)
+            visual_mask = visualize_detections(frame_resized, out_obj_ids, out_mask_logits, id_to_objects)
+            cv2.imshow("Segmented Frame", visual_mask)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 print("Exiting main")
                 break
             
-            # Publish processed image if enabledinstance_id
-            if ENABLE_IMAGE_PUBLISH:
-                try:
-                    compressed_msg = create_compressed_image_message(
-                        overlay, format='jpg', quality=80, timestamp=locked_frame_ts, frame_link=locked_frame_link)
-                    publisher_compressed.publish(roslibpy.Message(compressed_msg))
-                    if DEBUG_MODE:
-                        print(f"Published image with size: {overlay.shape}")
-                except Exception as e:
-                    print(f"\nError publishing image: {e}")
-
+            publish_visual_mask(overlay_publisher, visual_mask, locked_frame_ts, locked_frame_link)
+            publish_instance_class_dict(inst_class_publisher, id_to_objects, locked_frame_ts, locked_frame_link)
+            publish_label_mask(mask_publisher, frame_resized, out_obj_ids, out_mask_logits, locked_frame_ts, locked_frame_link)
+            
             time.sleep(rate)
     except KeyboardInterrupt:
         print("Program interrupted")
@@ -473,13 +498,63 @@ def main():
         cv2.destroyAllWindows()
         ros.terminate()
 
-def publish_mask(mask_publisher, frame_resized, out_obj_ids, out_mask_logits, timestamp, frame_link):
+def publish_visual_mask(publisher, overlay, timestamp, frame_link):
+    '''
+    Publish the overlay image to a ROS topic.
+    Args:
+        publisher: roslibpy publisher for CompressedImage.
+        overlay: The overlay image to be published.
+        timestamp: (secs, nsecs) tuple or None.
+        frame_link (str): Frame ID for Header.
+    '''
+    compressed_msg = create_compressed_image_message(overlay, format='jpg', quality=80, timestamp=timestamp, frame_link=frame_link)
+    publisher.publish(roslibpy.Message(compressed_msg))
+
+def publish_instance_class_dict(publisher, id_to_objects, timestamp, frame_link):
+    """
+    Publish instance-class mapping as a custom message via roslibpy with dict-based formatting.
+
+    Args:
+        publisher: roslibpy publisher for InstanceClassDict.
+        id_to_objects: Dictionary mapping object IDs to class labels.
+        timestamp: (secs, nsecs) tuple or None.
+        frame_link (str): Frame ID for Header.
+    """
+    # Handle timestamp
+    if timestamp is None:
+        now = time.time()
+        secs = int(now)
+        nsecs = int((now - secs) * 1e9)
+    else:
+        secs, nsecs = timestamp
+        
+    # Construct final ROS message dict
+    class_dict_msg = {
+        'header': {
+            'stamp': {'secs': secs, 'nsecs': nsecs},
+            'frame_id': frame_link
+        },
+        'data': json.dumps(id_to_objects)
+    }
+
+    # Publish as roslibpy.Message
+    publisher.publish(roslibpy.Message(class_dict_msg))
+    
+def publish_label_mask(publisher, frame_resized, out_obj_ids, out_mask_logits, timestamp, frame_link):
     """ 
     Publish a Mask image with instance IDs.
 
-    - The “mask“ values are no longer 0/255, but instead instance_id itself.
+    - The "mask" values are no longer 0/255, but instead instance_id itself.
     - Uses PNG compression to reduce bandwidth.
     - Adds erosion to clean mask edges.
+    
+    Args:
+        publisher: roslibpy publisher for CompressedImage.
+        frame_resized: The resized frame used for tracking.
+        out_obj_ids: List of object IDs.
+        out_mask_logits: Segmentation mask logits.
+        timestamp: (secs, nsecs) tuple or None.
+        frame_link (str): Frame ID for Header.
     """
 
     all_mask = np.zeros((frame_resized.shape[0], frame_resized.shape[1]), dtype=np.uint8)  # HxW
@@ -498,7 +573,7 @@ def publish_mask(mask_publisher, frame_resized, out_obj_ids, out_mask_logits, ti
 
     mask_msg = create_compressed_image_message(all_mask, format='png', quality=3, timestamp=timestamp, frame_link=frame_link)
 
-    mask_publisher.publish(roslibpy.Message(mask_msg))
+    publisher.publish(roslibpy.Message(mask_msg))
 
 
 if __name__ == "__main__":

@@ -50,7 +50,7 @@ public:
         : nh_(nh), tf_buffer_(), tf_listener_(tf_buffer_)
     {
         nh.param("/tvss_nav/pointcloud_topic", pointcloud_topic_, std::string("/camera/depth/color/points"));
-        nh.param("/tvss_nav/mask_topic", mask_topic_, std::string("/segmented_image/mask"));
+        nh.param("/tvss_nav/label_mask_topic", mask_topic_, std::string("/segmented_image/label_mask/compressed"));
         nh.param("/tvss_nav/color_info_topic", rgb_info_topic_, std::string("/camera/color/camera_info"));
         nh.param("/tvss_nav/semantic_instances_topic", instance_array_topic_, std::string("/instance_array"));
         nh.param("/tvss_nav/visual_cloud_topic", visual_cloud_topic_, std::string("/masked_cloud"));

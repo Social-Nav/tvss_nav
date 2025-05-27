@@ -8,7 +8,8 @@ tvss_nav:
   pointcloud_topic: "/camera/depth/color/points"
 
   # ================== Published by gsam2 ros ==================
-  mask_topic: "/segmented_image/mask"
+  visual_mask_topic: "/segmented_image/visual_mask/compressed"
+  label_mask_topic: "/segmented_image/label_mask/compressed"
   inst_class_topic: "/instance_class_dict"
 
   # ================== Published by (point cloud) seg_node ==================
@@ -16,7 +17,7 @@ tvss_nav:
   visual_cloud_topic: "/masked_cloud"
 
   # ================== Published by vlm ==================
-  text_input_topic: "/text_input"
+  segment_prompt_topic: "/segment_prompt"
   cost_attribute_topic: "/cost_attributes"
 
   # ================== Published by subgoal_sampler ==================

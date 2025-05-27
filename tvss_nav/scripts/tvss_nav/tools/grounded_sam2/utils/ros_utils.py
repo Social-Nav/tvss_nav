@@ -99,7 +99,7 @@ def create_publisher(ros, topic_name, msg_type):
     """
     return roslibpy.Topic(ros, topic_name, msg_type)
 
-def get_param(ros, name, default):
+def get_ros_param(ros, name, default):
     param = roslibpy.Param(ros, name)
     result = {}
     event = threading.Event()

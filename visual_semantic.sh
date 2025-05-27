@@ -57,11 +57,10 @@ gnome-terminal -- bash -c "roslaunch realsense2_camera rs_rgbd.launch \
     temporal_filter.enable:=true \
     hole_filling.enable:=true; exec bash" & get_new_pts
 gnome-terminal -- bash -c "roslaunch tvss_nav tvss_nav.launch rviz_file:=visual_semantic; exec bash" & get_new_pts
-gnome-terminal -- bash -c "source ~/anaconda3/etc/profile.d/conda.sh && conda activate gsam2 && cd ./tvss_nav/scripts/tvss_nav/tools/grounded_sam2 && python gsam2_ros_topic.py; exec bash" & get_new_pts
-# gnome-terminal -- bash -c "source ~/anaconda3/etc/profile.d/conda.sh && conda activate gsam2 && cd ./tvss_nav/scripts/tvss_nav/tools/grounded_sam2 && python gsam2_ros.py; exec bash" & get_new_pts
+# gnome-terminal -- bash -c "source ~/anaconda3/etc/profile.d/conda.sh && conda activate gsam2 && cd ./tvss_nav/scripts/tvss_nav/tools/grounded_sam2 && python gsam2_ros_terminal.py; exec bash" & get_new_pts
+gnome-terminal -- bash -c "source ~/anaconda3/etc/profile.d/conda.sh && conda activate gsam2 && cd ./tvss_nav/scripts/tvss_nav/tools/grounded_sam2 && python gsam2_ros.py; exec bash" & get_new_pts
 gnome-terminal -- bash -c "source ~/anaconda3/etc/profile.d/conda.sh && conda activate gsam2 && cd ./tvss_nav/scripts/tvss_nav && python -m vlm.vlm; exec bash" & get_new_pts
 gnome-terminal -- bash -c "source ~/anaconda3/etc/profile.d/conda.sh && conda activate gsam2 && cd ./tvss_nav/scripts/tvss_nav && python -m sampler.subgoal_sampler; exec bash" & get_new_pts
-# gnome-terminal -- bash -c "rviz -d ~/visual_semantic.rviz; exec bash" & get_new_pts
 
 # -------- Exit handling --------
 
