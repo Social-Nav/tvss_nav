@@ -281,7 +281,7 @@ def main():
         os.environ["SAM2_TRT_ENGINE_PATH"] = os.path.join(os.path.dirname(__file__), "tensorrt", "trt", trt_engine_name)
 
     # parameters log in the terminal
-    print("\n[Info] SAM2 Segmentation Node Configuration:")
+    print("\n[Info] GSAM2 Configuration:")
     print(f"  - Input image type         : {INPUT_IMAGE_TYPE}")
     print(f"  - Input image topic        : {INPUT_IMAGE_TOPIC}")
     print(f"  - Camera info topic        : {CAMERA_INFO_TOPIC}")
