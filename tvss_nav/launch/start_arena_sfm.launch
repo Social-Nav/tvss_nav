@@ -7,7 +7,7 @@
   <arg name="desired_resets" default="10" />
   <param name="desired_resets" value="$(arg desired_resets)" />
 
-  <arg name="timeout" default="60000" /> 
+  <arg name="timeout" default="120" /> 
   <!-- for jackal, don't specify the timeout value, or the simulator will stuck -->
   <param name="task_generator_server/timeout" value="$(arg timeout)" if="$(eval arg('timeout') != '')" />
 
@@ -15,8 +15,8 @@
   <!-- ___________ ARGS ___________ -->
   <!-- You can launch a single robot and his local_planner with arguments -->
   <arg name="model" default="jackal" doc="robot model type [burger, jackal, ridgeback, agvota, rto, ...]" />
-  <arg name="inter_planner" default="bypass" doc="inter planner type [bypass, shortsighted, polite, aggressive, sideways, sfm]" />
-  <arg name="local_planner" default="sfm" doc="local planner type [teb, dwa, mpc, rlca, arena, rosnav, cohan]" />
+  <arg name="inter_planner" default="bypass" doc="inter planner type [bypass, shortsighted, polite, aggressive, sideways]" />
+  <arg name="local_planner" default="sfm" doc="local planner type [teb, dwa, mpc, rlca, arena, rosnav, cohan, sfm]" />
   <!-- Only support gazebo in this demo -->
   <arg name="simulator" default="gazebo" doc="[flatland, gazebo, unity]" />
   <arg name="headless" default="0" doc="0 = show all, 1 = show only rviz, 2 = show nothing" />
@@ -33,7 +33,8 @@
   <!-- If the robot_setup_file is specified it is always loaded -->
   <arg name="robot_setup_file" default="" doc="" />
 
-  <arg name="record_data" default="false" />
+  <!-- <arg name="record_data" default="false" /> -->
+  <arg name="record_data" default="true" />
   <arg name="record_data_dir" default="auto:" />
   <param name="record_data_dir" type="str" value="$(arg record_data_dir)" if="$(eval arg('record_data'))"/>
 
