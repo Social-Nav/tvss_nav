@@ -33,8 +33,8 @@
   <!-- If the robot_setup_file is specified it is always loaded -->
   <arg name="robot_setup_file" default="" doc="" />
 
-  <!-- <arg name="record_data" default="false" /> -->
-  <arg name="record_data" default="true" />
+  <arg name="record_data" default="false" />
+  <!-- <arg name="record_data" default="true" /> -->
   <arg name="record_data_dir" default="auto:" />
   <param name="record_data_dir" type="str" value="$(arg record_data_dir)" if="$(eval arg('record_data'))"/>
 

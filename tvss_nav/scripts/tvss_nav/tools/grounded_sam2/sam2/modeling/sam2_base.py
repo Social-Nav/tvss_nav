@@ -15,8 +15,6 @@ from sam2.modeling.sam.prompt_encoder import PromptEncoder
 from sam2.modeling.sam.transformer import TwoWayTransformer
 from sam2.modeling.sam2_utils import get_1d_sine_pe, MLP, select_closest_cond_frames
 
-from torch2trt import TRTModule
-import tensorrt as trt
 import time
 
 import os
@@ -266,6 +264,9 @@ class SAM2Base(torch.nn.Module):
 
     def load_image_encoder(self):
         if self.use_trt:
+            from torch2trt import TRTModule
+            import tensorrt as trt
+            
             del self.image_encoder
             with trt.Logger(trt.Logger.ERROR) as logger, trt.Runtime(logger) as runtime:
 

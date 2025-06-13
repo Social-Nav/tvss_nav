@@ -9,8 +9,9 @@ windows:
         - core:
           - roscore
         - arena:
+          - roslaunch --wait tvss_nav start_arena_sfm.launch simulator:=gazebo model:=jackal map_file:=arena_hospital_small tm_obstacles:=scenario tm_robots:=scenario scenario_file:=1.json entity_manager:=pedsim
           # - roslaunch --wait tvss_nav start_arena_sfm.launch simulator:=gazebo model:=jackal map_file:=small_warehouse tm_obstacles:=random tm_robots:=random scenario_file:=1.json entity_manager:=pedsim
-          - roslaunch --wait tvss_nav start_arena_sfm.launch simulator:=gazebo model:=jackal map_file:=hospital tm_obstacles:=scenario tm_robots:=scenario scenario_file:=default.json entity_manager:=pedsim
+          # - roslaunch --wait tvss_nav start_arena_sfm.launch simulator:=gazebo model:=jackal map_file:=hospital tm_obstacles:=scenario tm_robots:=scenario scenario_file:=default.json entity_manager:=pedsim
           # - roslaunch --wait tvss_nav start_arena_sfm.launch simulator:=gazebo model:=jackal map_file:=map_empty tm_obstacles:=random tm_robots:=random scenario_file:=default.json entity_manager:=pedsim
         - dynamic_reconf:
           - |

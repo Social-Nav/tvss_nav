@@ -354,7 +354,7 @@ def main():
         else:
             print("[Warning] Camera info message does not contain height/width. Using default values.")
         
-    def handle_text_input(msg):
+    def handle_text_input(text):
         nonlocal text_prompt, restart_detection
         text_prompt = text
         restart_detection = True
