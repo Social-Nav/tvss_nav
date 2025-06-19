@@ -1,13 +1,77 @@
-.vscode
-.idea
-.cache
-__pycache__
+# VSCode project settings
+.vscode/
 
+# JetBrains IDEs (CLion, PyCharm, etc.)
+.idea/
+
+# Python bytecode and cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Python virtual environments
+env/
+venv/
+.venv/
+*.env
+
+# Huggingface and other ML model caches
+.cache/
+huggingface/
+*.safetensors
+*.pth
+*.pt
+
+# Compiled model artifacts
+*.onnx
+*.trt
+checkpoints/
+runs/              # e.g. for TensorBoard or logging
+
+# ROS build artifacts
 build/
 devel/
 logs/
 .catkin_tools/
+install/           # for catkin install builds
 
-*.onnx
-*.trt
-checkpoints/
+# ROS dependency caches
+rosdep/
+roslib/
+
+# CMake and make files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Compilation/intermediate files
+*.o
+*.obj
+*.so
+*.a
+*.dll
+*.lib
+*.dylib
+
+# Shared object bindings
+*.cpp.o
+*.cxx.o
+
+# Python packaging artifacts
+*.egg-info/
+build/
+dist/
+
+# Core dumps
+core.*
+*.log
+
+# Jupyter/IPython
+.ipynb_checkpoints/
+
+# System-specific files
+.DS_Store
+Thumbs.db
+desktop.ini

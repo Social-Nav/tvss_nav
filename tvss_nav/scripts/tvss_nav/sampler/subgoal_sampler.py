@@ -70,7 +70,7 @@ class SubgoalSampler:
         with open(config_path, 'r') as f:
             self.config = json.load(f)
 
-        prompt_path = os.path.join(os.path.dirname(__file__), 'system_prompt.txt')
+        prompt_path = os.path.join(os.path.dirname(__file__), 'system_prompt.md')
         with open(prompt_path, 'r') as f:
             self.system_prompt = f.read().strip()
 
