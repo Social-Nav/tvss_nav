@@ -77,7 +77,7 @@ class VLM:
             self.config = json.load(f)
 
         # === Load system prompt ===
-        prompt_path = os.path.join(os.path.dirname(__file__), 'system_prompt.md')
+        prompt_path = os.path.join(os.path.dirname(__file__), 'system_prompt.txt')
         with open(prompt_path, 'r') as f:
             self.system_prompt = f.read().strip()
 

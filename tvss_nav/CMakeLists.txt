@@ -194,6 +194,8 @@ target_link_libraries(social_layer
 ## in contrast to setup.py, you can choose the destination
 catkin_install_python(PROGRAMS
   scripts/tvss_nav/utils/goal_projector.py
+  scripts/tvss_nav/sampler/robopoint_sampler/local_inference_ros.py
+  # scripts/tvss_nav/sampler/robopoint_sampler/scripts/robopoint_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
