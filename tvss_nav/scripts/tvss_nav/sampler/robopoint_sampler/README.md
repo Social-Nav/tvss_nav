@@ -1,2 +1,0 @@
-### ALOHA
-### MOHALO

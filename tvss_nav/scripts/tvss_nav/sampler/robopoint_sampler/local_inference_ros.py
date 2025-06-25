@@ -32,6 +32,7 @@ class RosLocalInfer:
 
         self.latest_image_b64 = None
         self.latest_prompt    = None
+        self.latest_header    = None
         self.lock = threading.Lock()
 
         model_path = rospy.get_param('~model_path',
@@ -91,6 +92,7 @@ class RosLocalInfer:
                 self.latest_image_b64 = base64.b64encode(msg.data).decode('utf-8')
             else:
                 self.latest_image_b64 = msg.data
+            self.latest_header = msg.header
         self.try_infer()
 
     def prompt_cb(self, msg: String):
@@ -198,10 +200,9 @@ class RosLocalInfer:
             rospy.loginfo("[RosLocalInfer] No valid points to visualize.")
         rospy.loginfo(f"[RosLocalInfer] Result → {result}")
         # self.pub.publish(String(data=result))
-        # 构造 PointStamped，坐标用平均点 avg_x, avg_y
         ps = PointStamped()
-        ps.header.stamp = rospy.Time.now()                 # 或者用摄像头的时间戳
-        ps.header.frame_id = "<your_frame_id>"             # 通常和图像的 frame_id 一致
+        ps.header.stamp = self.latest_header.stamp             
+        ps.header.frame_id = self.latest_header.frame_id      
         ps.point.x = avg_x
         ps.point.y = avg_y
         ps.point.z = 0.0
