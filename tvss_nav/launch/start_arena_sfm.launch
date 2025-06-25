@@ -7,7 +7,7 @@
   <arg name="desired_resets" default="10" />
   <param name="desired_resets" value="$(arg desired_resets)" />
 
-  <arg name="timeout" default="120" /> 
+  <arg name="timeout" default="1200" /> 
   <!-- for jackal, don't specify the timeout value, or the simulator will stuck -->
   <param name="task_generator_server/timeout" value="$(arg timeout)" if="$(eval arg('timeout') != '')" />
 
@@ -15,7 +15,7 @@
   <!-- ___________ ARGS ___________ -->
   <!-- You can launch a single robot and his local_planner with arguments -->
   <arg name="model" default="jackal" doc="robot model type [burger, jackal, ridgeback, agvota, rto, ...]" />
-  <arg name="inter_planner" default="bypass" doc="inter planner type [bypass, shortsighted, polite, aggressive, sideways]" />
+  <arg name="inter_planner" default="aggressive" doc="inter planner type [bypass, shortsighted, polite, aggressive, sideways]" />
   <arg name="local_planner" default="sfm" doc="local planner type [teb, dwa, mpc, rlca, arena, rosnav, cohan, sfm]" />
   <!-- Only support gazebo in this demo -->
   <arg name="simulator" default="gazebo" doc="[flatland, gazebo, unity]" />

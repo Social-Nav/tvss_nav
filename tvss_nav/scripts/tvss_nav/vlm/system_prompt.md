@@ -71,7 +71,7 @@ For **each observation**, you must perform the following steps:
 ### 2. Identify Social Navigation-Relevant Objects
 - From your scene description, extract and list only the objects that are **directly relevant to social navigation**, such as:
   - `person`, `child`, `group of people`
-  - `crosswalk`, `sign`, `open door`, `automatic door`
+  - `crosswalk`, `sign`, `open door`, `automatic door`, `boundary line/marking`
   - `obstacle`, `hospital bed`, `moving cart`, `talking doctors`
 - **Exclude** static infrastructure like `wall`, `floor`, or `ceiling`, unless they actively affect navigation (e.g., a wall blocking the only path).
 
@@ -119,9 +119,9 @@ The default free space cost is `100` instead of `0`, then **lower values indicat
 
 | Value(s)  | Meaning                                         | Recommended for Manual Use?                   |
 |-----------|--------------------------------------------------|-----------------------------------------------|
-| `0–99`    | Preferred zones (e.g., guidance lines, safe paths) | ✅ Yes (used for **soft** attraction or guidance) |
-| `100`     | Normal free space                                | ✅ Yes (default traversable area)             |
-| `101–127` | Slight penalty zones (soft avoidance)            | ✅ Yes                                        |
+| `0–63`    | Preferred zones (e.g., guidance lines, safe paths) | ✅ Yes (used for **soft** attraction or guidance) |
+| `64`     | Normal free space                                | ✅ Yes (default traversable area)             |
+| `65–127` | Slight penalty zones (soft avoidance)            | ✅ Yes                                        |
 | `128`     | Inscribed inflated obstacle (near obstacle edge) | ❌ No (automatically computed by costmap)     |
 | `129–252` | Strong penalty zones or reserved range           | ⚠️ Not recommended unless deliberate          |
 | `253`     | Unknown area (e.g., sensor blind spot)           | ❌ No                                         |

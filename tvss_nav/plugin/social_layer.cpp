@@ -23,7 +23,7 @@ void SocialLayer::onInitialize()
   ros::NodeHandle nh("~/" + name_), g_nh;
   rolling_window_ = layered_costmap_->isRolling();
 
-  default_value_ = FREE_SPACE;
+  default_value_ = 64;
 
   SocialLayer::matchSize();
   current_ = true;
@@ -118,46 +118,55 @@ void SocialLayer::updateBounds(double robot_x, double robot_y, double robot_yaw,
 void SocialLayer::updateCosts(costmap_2d::Costmap2D& master_grid,
                                int min_i, int min_j, int max_i, int max_j)
 {
-  // 清理逻辑
-  for (const auto& buffer : clearing_buffers_)
-  {
-    SocialObservation data = buffer->getData();
-    for (const auto& instance : data)
-    {
-      pcl::PointCloud<pcl::PointXYZ> cloud, cloud_transformed;
-      pcl::fromROSMsg(instance.cloud, cloud);
+  // // clearing logic
+  // for (const auto& buffer : clearing_buffers_)
+  // {
+  //   SocialObservation data = buffer->getData();
+  //   for (const auto& instance : data)
+  //   {
+  //     pcl::PointCloud<pcl::PointXYZ> cloud, cloud_transformed;
+  //     pcl::fromROSMsg(instance.cloud, cloud);
 
-      geometry_msgs::TransformStamped tf_transform;
-      try {
-        tf_transform = tf_->lookupTransform(
-            global_frame_, 
-            instance.cloud.header.frame_id, 
-            instance.cloud.header.stamp, 
-            ros::Duration(0.5));
+  //     geometry_msgs::TransformStamped tf_transform;
+  //     try {
+  //       tf_transform = tf_->lookupTransform(
+  //           global_frame_, 
+  //           instance.cloud.header.frame_id, 
+  //           instance.cloud.header.stamp, 
+  //           ros::Duration(0.5));
         
-        Eigen::Affine3d tf_eigen;
-        tf_eigen = tf2::transformToEigen(tf_transform);
-        Eigen::Matrix4f tf_mat = tf_eigen.matrix().cast<float>();
+  //       Eigen::Affine3d tf_eigen;
+  //       tf_eigen = tf2::transformToEigen(tf_transform);
+  //       Eigen::Matrix4f tf_mat = tf_eigen.matrix().cast<float>();
 
-        pcl::transformPointCloud(cloud, cloud_transformed, tf_mat);
-      } catch (const tf2::TransformException& ex) {
-        ROS_WARN("Transform failed in updateCosts: %s", ex.what());
-        continue;
-      }
+  //       pcl::transformPointCloud(cloud, cloud_transformed, tf_mat);
+  //     } catch (const tf2::TransformException& ex) {
+  //       ROS_WARN("Transform failed in updateCosts: %s", ex.what());
+  //       continue;
+  //     }
 
-      for (const auto& pt : cloud_transformed)
-      {
-        if (pt.z < config_.min_height || pt.z > config_.max_height) continue;
+  //     for (const auto& pt : cloud_transformed)
+  //     {
+  //       if (pt.z < config_.min_height || pt.z > config_.max_height) continue;
 
-        unsigned int mx, my;
-        if (!master_grid.worldToMap(pt.x, pt.y, mx, my)) continue;
+  //       unsigned int mx, my;
+  //       if (!master_grid.worldToMap(pt.x, pt.y, mx, my)) continue;
 
-        master_grid.setCost(mx, my, FREE_SPACE);
-      }
+  //       master_grid.setCost(mx, my, default_value_);
+  //     }
+  //   }
+  // }
+
+  for (int x = min_i; x < max_i; ++x)
+  {
+    for (int y = min_j; y < max_j; ++y)
+    {
+      int bias_value = int((costmap_2d::LETHAL_OBSTACLE - default_value_) * master_grid.getCost(x, y) / costmap_2d::LETHAL_OBSTACLE) + default_value_;
+      master_grid.setCost(x, y, bias_value);
     }
   }
 
-  // 标记逻辑
+  // marking logic
   std::vector<SocialObservation> observations;
   if (!getObservations(marking_buffers_, observations)) return;
 

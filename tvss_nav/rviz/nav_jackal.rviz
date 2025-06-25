@@ -415,7 +415,7 @@ Visualization Manager:
       Marker Topic: /dynamic_obstacles/dynamic_markers
       Name: DynamicObstacles
       Namespaces:
-        /jackal/dynamic_obstacle_detector: true
+        {}
       Queue Size: 100
       Value: true
     - Alpha: 1
@@ -635,8 +635,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: -9999
-        Min Value: 9999
+        Max Value: 0.03441977500915527
+        Min Value: 0.03422129154205322
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -688,7 +688,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rtabmap_rviz_plugins/OrbitOriented
-      Distance: 47.592254638671875
+      Distance: 15.850708961486816
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -696,17 +696,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: -13.006781578063965
-        Y: -8.953079223632812
-        Z: -4.119789123535156
+        X: -8.674241065979004
+        Y: -4.00255823135376
+        Z: 1.2049797773361206
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.6147967576980591
+      Pitch: 0.5347967743873596
       Target Frame: <Fixed Frame>
-      Yaw: 1.5472378730773926
+      Yaw: 1.5172377824783325
     Saved: ~
 Window Geometry:
   Depth:
