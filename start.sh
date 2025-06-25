@@ -50,12 +50,6 @@ trap cleanup SIGINT
 
 # -------- Launch terminal tasks --------
 
-# gnome-terminal -- bash -c "\
-#   cd tvss_nav/scripts/tvss_nav/sampler/robopoint_sampler && \
-#   roslaunch /tvss_nav/scripts/tvss_nav/sampler/robopoint_sampler/launch/robopoint_sampler.launch; \
-#   exec bash" & get_new_pts
-# sleep 1
-# 新版本：直接跑 python 脚本
 gnome-terminal -- bash -c "\
   cd tvss_nav/scripts/tvss_nav/sampler/robopoint_sampler && \
   python3 local_inference_ros.py; \
