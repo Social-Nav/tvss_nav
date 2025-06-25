@@ -78,19 +78,5 @@ desktop.ini
 
 
 #RoboPoint 
-**/robopoint/**/*.safetensors
-**/robopoint/**/*.pt
-**/robopoint/**/*.pth
-**/robopoint/**/*model-*.bin
-**/robopoint/**/*pytorch_model-*.bin
-**/robopoint/**/adapter_*.*
-**/robopoint/**/trainer_state.json
-**/robopoint/**/non_lora_trainables.bin
-**/robopoint/**/*.log
-**/robopoint/controller.log*
-**/robopoint/run_*.sh
-**/robopoint/response_images/
-**/robopoint/serve_images/
-**/robopoint/wentao-yuan/**
-**/robopoint/**/__pycache__/
+tvss_nav/scripts/tvss_nav/sampler/robopoint_sampler/robopoint/wentao-yuan
 
