@@ -44,7 +44,7 @@ struct Forces {
 
 struct Parameters {
   Parameters()
-      : forceFactorDesired(2.0), forceFactorObstacle(10),
+      : forceFactorDesired(2.0), forceFactorObstacle(10.0),
         forceSigmaObstacle(0.6), forceFactorSocial(2.1),
         forceFactorGroupGaze(3.0), forceFactorGroupCoherence(2.0),
         forceFactorGroupRepulsion(1.0), lambda(2.0), gamma(0.35), n(2.0),
@@ -199,6 +199,10 @@ inline void SocialForceModel::computeObstacleForce(Agent &agent,
   //     }
   //     agent.forces.obstacleForce /=
   //         (double)(agent.obstacles1.size() + agent.obstacles2.size());
+  // agent.forces.obstacleForce.set(0, 0);
+  // return;
+
+
   if (agent.obstacles1.size() > 0 || agent.obstacles2.size() > 0) {
     agent.forces.obstacleForce.set(0, 0);
     for (unsigned i = 0; i < agent.obstacles1.size(); i++) {
@@ -470,7 +474,17 @@ SocialForceModel::computeForces(std::vector<Agent> &agents, Map *map) const {
     agents[i].forces.globalForce =
         agents[i].forces.desiredForce + agents[i].forces.socialForce +
         agents[i].forces.obstacleForce + agents[i].forces.groupForce;
-  }
+  //   auto printForce = [&](const std::string &name, const utils::Vector2d &f) {
+  //     double mag = f.norm();
+  //     double ang = f.angle().toDegree();
+  //     ROS_INFO("%s | mag=%.3f, ang=%.1f°", name.c_str(), mag, ang);
+  //   };
+  //   printForce("DesiredForce",  agents[i].forces.desiredForce);
+  //   printForce("ObstacleForce", agents[i].forces.obstacleForce);
+  //   printForce("SocialForce",   agents[i].forces.socialForce);
+  //   printForce("GroupForce",    agents[i].forces.groupForce);
+  //   printForce("GlobalForce",   agents[i].forces.globalForce);
+  // }
   return agents;
 }
 

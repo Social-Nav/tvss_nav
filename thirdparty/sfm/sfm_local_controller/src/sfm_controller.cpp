@@ -50,11 +50,7 @@ SFMController::SFMController(
       yaw_tolerance_(yaw_tolerance), robot_frame_(robot_frame),
       planner_frame_(controller_frame), a_(a) {
   // Initialize robot agent
-  robot_.desiredVelocity = max_lin_vel_;
-  robot_.radius = robot_radius_;
-  robot_.cyclicGoals = false;
-  robot_.teleoperated = true;
-  robot_.params.forceFactorDesired = sfm_goal_weight_;
+  // return true;
   robot_.params.forceFactorObstacle = sfm_obstacle_weight_;
   robot_.params.forceFactorSocial = sfm_people_weight_;
 
@@ -84,7 +80,7 @@ SFMController::SFMController(
   // Adverstise SFM local goal
   sfm_goal_pub_ =
       n->advertise<visualization_msgs::Marker>("/sfm/markers/goal", 1);
-
+  // subgoal_pub_ = n->advertise<visualization_msgs::Marker>("/sfm/markers/subgoal", 1);
   // Initialize sensor interface
   sensor_iface_ = sensor_iface;
 
@@ -161,6 +157,17 @@ void SFMController::reconfigure(
  */
 bool SFMController::update(std::vector<geometry_msgs::PoseStamped> path) {
 
+
+  if (!path.empty()) {
+    const auto& global = path.back();
+    ROS_INFO(
+      "DEBUG → GLOBAL GOAL: x=%.3f, y=%.3f, z=%.3f",
+      global.pose.position.x,
+      global.pose.position.y,
+      global.pose.position.z
+    );
+  }
+
   std::vector<sfm::Agent> agents = sensor_iface_->getAgents();
 
   configuration_mutex_.lock();
@@ -226,6 +233,7 @@ bool SFMController::update(std::vector<geometry_msgs::PoseStamped> path) {
       // printf("Update. Goal found! x: %.2f, y: %.2f\n", g.center.getX(),
       //       g.center.getY());
       publishSFMGoal(path[i]);
+      // publishSubgoal(path[i]);
       configuration_mutex_.unlock();
       return false;
     }
@@ -241,6 +249,7 @@ bool SFMController::update(std::vector<geometry_msgs::PoseStamped> path) {
     robot_.goals.push_back(g);
     goal_reached_ = false;
     publishSFMGoal(min);
+    // publishSubgoal(min);
   } else {
     printf("Update. Goal not found. Received path size: %i\n",
            (int)path.size());
@@ -291,8 +300,18 @@ bool SFMController::computeAction(geometry_msgs::Twist &cmd_vel) {
     return true;
   }
 
+  // Set the factor of the obstacle force to 0.2
+  robot_.params.forceFactorObstacle = 0.04;
+  for (auto &ag : agents_) {
+    ag.params.forceFactorObstacle = 0.04;
+  }
+
+
   // Compute Social Forces
   sfm::SFM.computeForces(robot_, agents_);
+  
+
+
 
   // Compute velocity of the robot
   robot_.velocity += robot_.forces.globalForce * dt;
@@ -386,7 +405,6 @@ void SFMController::publishSFMGoal(const geometry_msgs::PoseStamped &g) {
   marker.pose = g.pose;
   sfm_goal_pub_.publish(marker);
 }
-
 /**
  * @brief Publish an arrow marker in Rviz representing a force
  * @param index id of the marker
@@ -437,7 +455,7 @@ std_msgs::ColorRGBA SFMController::getColor(double r, double g, double b,
 }
 
 /**
- * @brief Publish the set of SFM forces in RViz
+ * @brief Publish the set of SFM forces in RViz匹
  * @return none
  */
 void SFMController::publishForces() {
@@ -446,8 +464,8 @@ void SFMController::publishForces() {
                      markers, "obstacle_force");
   publishForceMarker(1, getColor(0, 0, 1, 1), robot_.forces.socialForce,
                      markers, "social_force");
-  // publishForceMarker(2, getColor(0, 1, 1, 1), robot_.forces.groupForce,
-                    //  markers, "group_force");
+  publishForceMarker(2, getColor(0, 1, 1, 1), robot_.forces.groupForce,
+                     markers, "group_force");
   publishForceMarker(3, getColor(0, 1, 0, 1), robot_.forces.desiredForce,
                      markers, "desired_force");
   publishForceMarker(4, getColor(1, 1, 1, 1), robot_.forces.globalForce,

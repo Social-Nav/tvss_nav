@@ -14,7 +14,7 @@ from std_msgs.msg import String
 from geometry_msgs.msg import PointStamped
 from PIL import Image
 from io import BytesIO
-
+import random
 import cv2
 import numpy as np
 
@@ -41,14 +41,6 @@ class RosLocalInfer:
             rospy.get_param('~model_base',
                             '~/arena_ws/src/tvss_nav/scripts/tvss_nav/sampler/robopoint_sampler/robopoint/wentao-yuan/vicuna-7b-v1.5'))
         device     = 'cuda' if torch.cuda.is_available() else 'cpu'
-        # rospy.loginfo(f"[RosLocalInfer] Loading model {model_path} (base {model_base}) on {device}…")
-        # self.tokenizer, self.model, self.image_processor, _ = load_pretrained_model(
-        #     model_path=os.path.expanduser(model_path),
-        #     model_base=model_base,
-        #     model_name=None,
-        #     load_8bit=False,
-        #     load_4bit=False,
-        #     device=device
         expanded = os.path.expanduser(model_path)
         model_name = rospy.get_param('~model_name', os.path.basename(expanded))
         rospy.loginfo(f"[RosLocalInfer] Loading model {expanded} (base {model_base}) "
@@ -70,9 +62,24 @@ class RosLocalInfer:
         self.pub = rospy.Publisher(self.output_topic, PointStamped, queue_size=1)
 
         threading.Thread(target=self._stdin_prompt_loop, daemon=True).start()
-
+        self.default_prompts = rospy.get_param(
+            '~default_prompts',
+            [
+                # "Go to the nearest door",
+                "Follow the person you see",
+                # "Go to the chair",
+                # "Go to the central desk"
+            ]
+        )
+        self._auto_prompt_timer = rospy.Timer(
+            rospy.Duration(7.0),
+            self._on_auto_prompt
+        )
         rospy.loginfo("[RosLocalInfer] Ready — waiting for image & prompt.")
-
+    def _on_auto_prompt(self,event):
+        prompt = random.choice(self.default_prompts)
+        rospy.loginfo(f"[RosLocalInfer] Auto-publishing prompt: {prompt!r}")
+        self.stdin_pub.publish(String(data=prompt))
     def _stdin_prompt_loop(self):
         rospy.loginfo("[RosLocalInfer] —— input query, and press enter ——")
         while not rospy.is_shutdown():
@@ -96,7 +103,7 @@ class RosLocalInfer:
         self.try_infer()
 
     def prompt_cb(self, msg: String):
-        rospy.loginfo(f"[RosLocalInfer] <<< Received user_query >>> “{msg.data}”")
+        # rospy.loginfo(f"[RosLocalInfer] <<< Received user_query >>> “{msg.data}”")
         with self.lock:
             self.latest_prompt = msg.data.strip()
         self.try_infer()
@@ -117,7 +124,7 @@ class RosLocalInfer:
             rospy.logwarn("[RosLocalInfer] There is no image right now. Skip inference.")
             return
 
-        rospy.loginfo(f"[RosLocalInfer] Inference for prompt: “{prompt}”")
+        # rospy.loginfo(f"[RosLocalInfer] Inference for prompt: “{prompt}”")
 
         img_data = base64.b64decode(img_b64)
         img = Image.open(BytesIO(img_data)).convert("RGB")
@@ -125,11 +132,7 @@ class RosLocalInfer:
         img_tensor = process_images([img], self.image_processor, self.model.config)[0] \
                         .to(self.device).half().unsqueeze(0)
         print(f"[DEBUG] image mode={img.mode}, size={img.size}")           
-        print(f"[DEBUG] img_tensor.shape={tuple(img_tensor.shape)}")      
-        cv_img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-        cv2.imshow("DEBUG - current image", cv_img)
-        cv2.waitKey(5000)  
-        cv2.destroyWindow("DEBUG - current image")
+        print(f"[DEBUG] img_tensor.shape={tuple(img_tensor.shape)}") 
 
         conv = conv_templates['llava_v1'].copy()
         if getattr(self.model.config, 'mm_use_im_start_end', False):
@@ -167,10 +170,10 @@ class RosLocalInfer:
             )
 
         result = self.tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
-        print(f"\n>> user_query: {prompt}")
-        print(f"\n>> system instruction: {instruction}")
-        print(f"<< model_output_ids: {output_ids}")
-        print(f"<< model_output: {result}")
+        # print(f"\n>> user_query: {prompt}")
+        # print(f"\n>> system instruction: {instruction}")
+        # print(f"<< model_output_ids: {output_ids}")
+        # print(f"<< model_output: {result}")
         try:
             coords_norm = eval(result)  
         except Exception as e:
@@ -191,9 +194,9 @@ class RosLocalInfer:
             avg_y = int(sum(py for _, py in pixel_pts) / len(pixel_pts))
             cv2.circle(vis, (avg_x, avg_y), radius=8, color=(0,0,255), thickness=-1)
 
-            cv2.imshow("RoboPoint Visualization", vis)
-            cv2.waitKey(5000)
-            cv2.destroyWindow("RoboPoint Visualization")
+            # cv2.imshow("RoboPoint Visualization", vis)
+            # cv2.waitKey(5000)
+            # cv2.destroyWindow("RoboPoint Visualization")
 
             rospy.loginfo(f"[RosLocalInfer] Average subgoal pixel: ({avg_x}, {avg_y})")
         else:

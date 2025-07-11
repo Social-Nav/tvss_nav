@@ -102,6 +102,7 @@ private:
   };
   float a_;
 
+
   /**
    * @brief Publish an arrow marker in Rviz representing a force
    * @param index id of the marker
@@ -134,6 +135,12 @@ private:
    * @return none
    */
   void publishSFMGoal(const geometry_msgs::PoseStamped &g);
+    /**
+   * @brief Publish the subgoal path in RViz
+   * @param path subgoal path to be published
+   * @return none
+   */
+  // void publishSubgoal(const geometry_msgs::PoseStamped &g) ;
 
   SFMSensorInterface *sensor_iface_;
   CollisionChecker *collision_checker_;
@@ -144,6 +151,7 @@ private:
   std::string robot_frame_;
   ros::Publisher g_plan_pub_, l_plan_pub_, robot_markers_pub_,
       sfm_goal_pub_; //, vel_pub_;
+  // ros::Publisher subgoal_pub_;
 
   sfm::Agent robot_;
   std::vector<sfm::Agent> agents_;
