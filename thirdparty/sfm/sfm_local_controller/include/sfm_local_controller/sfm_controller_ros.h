@@ -34,6 +34,7 @@
 
 #include <vector>
 
+
 namespace Upo {
 namespace Navigation {
 namespace sfm_controller {
@@ -91,9 +92,11 @@ public:
    */
   bool isGoalReached();
 
+
   // void scanCb(const sensor_msgs::LaserScan::ConstPtr &laser);
 
 private:
+  
   /**
    * @brief Callback to update the local planner's parameters based on dynamic
    * reconfigure

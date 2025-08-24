@@ -21,7 +21,9 @@
 
 #include <algorithm> // for copy() and assign()
 #include <iterator>  // for back_inserter
-
+#include <tvss_nav/SemanticInstanceArray.h>   
+#include <unordered_map>
+#include <unordered_set>
 namespace Upo {
 namespace Navigation {
 namespace sfm_controller {
@@ -72,8 +74,30 @@ public:
    * @return True if a possible collision was detected, False otherwise
    */
   bool fastCollisioncheck();
-
+  
+  // void semCb(const tvss_nav::SemanticInstanceArray::ConstPtr& msg);
+  // static bool centroidFromCloud(const sensor_msgs::PointCloud2& cloud,
+  //                               geometry_msgs::Point& out);
+  // bool transformPoint(const geometry_msgs::Point& in,
+  //                     const std::string& from_frame,
+  //                     const std::string& to_frame,
+  //                     const ros::Time& stamp,
+  //                     geometry_msgs::Point& out) const;
+  // void matchAndTagAgents();
+  
 private:
+  //   struct SemObj {
+  //   int id=-1;                  
+  //   std::string cls;         
+  //   geometry_msgs::Point p;  
+  //   ros::Time stamp;
+  // };
+  // double match_radius_ = 1.0;         
+  // std::string sem_frame_ = "map";
+  // ros::Subscriber sem_sub_;           
+  // tf2_ros::Buffer* tf_buffer_{nullptr}; 
+  // std::vector<SemObj> sem_objs_;      
+  // std::unordered_map<int, ros::Time> label_time_; 
   /**
    * @brief inline method of normalize an angle
    * @param val the angle in rads to be normalized
@@ -101,6 +125,7 @@ private:
     return max * (1 - exp(-exp_const * fabs(var))) * var / fabs(var);
   };
   float a_;
+
 
   /**
    * @brief Publish an arrow marker in Rviz representing a force
@@ -134,6 +159,12 @@ private:
    * @return none
    */
   void publishSFMGoal(const geometry_msgs::PoseStamped &g);
+    /**
+   * @brief Publish the subgoal path in RViz
+   * @param path subgoal path to be published
+   * @return none
+   */
+  // void publishSubgoal(const geometry_msgs::PoseStamped &g) ;
 
   SFMSensorInterface *sensor_iface_;
   CollisionChecker *collision_checker_;
@@ -144,6 +175,7 @@ private:
   std::string robot_frame_;
   ros::Publisher g_plan_pub_, l_plan_pub_, robot_markers_pub_,
       sfm_goal_pub_; //, vel_pub_;
+  // ros::Publisher subgoal_pub_;
 
   sfm::Agent robot_;
   std::vector<sfm::Agent> agents_;

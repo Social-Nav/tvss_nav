@@ -28,7 +28,9 @@
 #include <cmath>
 #include <unordered_map>
 #include <vector>
-
+#include <unordered_map>
+#include <vector>
+#include <string>
 namespace sfm {
 struct Forces {
   utils::Vector2d desiredForce;
@@ -73,21 +75,27 @@ struct Agent {
   Agent()
       : desiredVelocity(0.6), radius(0.35), cyclicGoals(false),
         teleoperated(false), antimove(false), linearVelocity(0),
-        angularVelocity(0), groupId(-1) {}
+        angularVelocity(0), groupId(-1),
+        semantic_instance_id(-1), semantic_class("unknown"){}
 
   Agent(double linearVelocity, double angularVelocity)
       : desiredVelocity(0.6), radius(0.35), cyclicGoals(false),
         teleoperated(true), antimove(false), linearVelocity(linearVelocity),
-        angularVelocity(angularVelocity), groupId(-1) {}
+        angularVelocity(angularVelocity), groupId(-1) ,
+        semantic_instance_id(-1), semantic_class("unknown"){}
 
   Agent(const utils::Vector2d &position, const utils::Angle &yaw,
         double linearVelocity, double angularVelocity)
       : position(position), yaw(yaw), desiredVelocity(0.6), radius(0.35),
         cyclicGoals(false), teleoperated(true), antimove(false),
         linearVelocity(linearVelocity), angularVelocity(angularVelocity),
-        groupId(-1) {}
+        groupId(-1) ,
+        semantic_instance_id(-1), semantic_class("unknown"){}
 
   void move(double dt); // only if teleoperated
+
+  int         semantic_instance_id;
+  std::string semantic_class;
 
   utils::Vector2d position;
   utils::Vector2d velocity;
@@ -267,6 +275,15 @@ SocialForceModel::computeSocialForce(unsigned index,
           agent.params.forceFactorSocial * (forceVelocity + forceAngle);
     }
   }
+    
+  double mag = agent.forces.socialForce.norm();
+  if (mag > 1e-8) {
+    double newMag = mag - 200000.0;
+    agent.forces.socialForce = (agent.forces.socialForce / mag) * newMag;
+  }
+  else{
+    agent.forces.socialForce.set(-10, -10);
+  }
 }
 
 inline void
@@ -299,6 +316,15 @@ SocialForceModel::computeSocialForce(Agent &me,
         forceAngleAmount * interactionDirection.leftNormalVector();
     me.forces.socialForce +=
         me.params.forceFactorSocial * (forceVelocity + forceAngle);
+
+    double mag = me.forces.socialForce.norm();
+    if (mag > 1e-8) {
+      double newMag = mag - 200000.0;
+      me.forces.socialForce = (me.forces.socialForce / mag) * newMag;
+    }
+    else{
+      me.forces.socialForce.set(-10, -10);
+    }
     // if (i == 0)
     //{
     //  agent.forces.robotSocialForce =

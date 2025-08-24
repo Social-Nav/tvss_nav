@@ -101,6 +101,8 @@
   <exec_depend>pcl_ros</exec_depend>
   <exec_depend>pluginlib</exec_depend>
   <exec_depend>dynamic_reconfigure</exec_depend>
+  <exec_depend>roslibpy</exec_depend>
+  <exec_depend>requests</exec_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

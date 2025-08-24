@@ -75,3 +75,11 @@ core.*
 .DS_Store
 Thumbs.db
 desktop.ini
+
+
+#RoboPoint 
+tvss_nav/scripts/tvss_nav/sampler/robopoint_sampler/robopoint/wentao-yuan
+tvss_nav/scripts/tvss_nav/tools/grounded_sam2/checkpoints/
+arena/
+extern/
+planners/

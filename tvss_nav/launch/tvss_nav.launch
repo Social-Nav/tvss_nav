@@ -1,7 +1,7 @@
 <launch>
   <!--args-->
   <arg name="show_rviz" default="true" />
-  <arg name="rviz_file" default="common" />
+  <arg name="rviz_file" default="visual_semantic" />
 
   <!-- load static parameters-->
   <arg name="shared_param_cfg" default="common.yaml" />

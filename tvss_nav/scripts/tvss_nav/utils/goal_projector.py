@@ -8,7 +8,10 @@ from geometry_msgs.msg import PointStamped, PoseStamped
 import cv2
 import numpy as np
 from cv_bridge import CvBridge
-
+import actionlib
+from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+import math
+from tf.transformations import quaternion_from_euler
 class GoalProjectorNode:
     def __init__(self):
         rospy.init_node('goal_projector')
@@ -36,11 +39,17 @@ class GoalProjectorNode:
         pixel_goal_sub = message_filters.Subscriber(pixel_goal_topic, PointStamped)
 
         ts = message_filters.TimeSynchronizer([depth_sub, pixel_goal_sub], queue_size=1000)
+        # self.subgoal_pub = rospy.Publisher('/jackal/current_subgoal', PoseStamped, queue_size=1)
         ts.registerCallback(self.synced_callback)
 
         # === Publisher for 3D goal in target frame ===
         self.pub = rospy.Publisher(goal_pose_topic, PoseStamped, queue_size=1)
         self.target_frame = target_frame
+
+        self.mb_ac = actionlib.SimpleActionClient('/jackal/move_base', MoveBaseAction)
+        rospy.loginfo("Waiting for move_base action server…")
+        self.mb_ac.wait_for_server()
+        rospy.loginfo("Connected to move_base.")
 
     def camera_info_callback(self, msg):
         if self.camera_info is None:
@@ -72,7 +81,6 @@ class GoalProjectorNode:
             uv = np.array([[[u, v]]], dtype=np.float32)
             undistorted = cv2.undistortPoints(uv, K, D)
             x_n, y_n = undistorted[0][0]
-
             x, y, z = x_n * depth, y_n * depth, depth
 
             point_cam = PointStamped()
@@ -80,7 +88,7 @@ class GoalProjectorNode:
             point_cam.point.x = x
             point_cam.point.y = y
             point_cam.point.z = z
-
+            print("point_cam.point:",point_cam.point)
             try:
                 transform = self.tf_buffer.lookup_transform(
                     self.target_frame,
@@ -88,6 +96,8 @@ class GoalProjectorNode:
                     point_cam.header.stamp,
                     timeout=rospy.Duration(1.0)
                 )
+                print("point_cam", point_cam)
+                print("Transform found:", transform)
                 point_map = tf2_geometry_msgs.do_transform_point(point_cam, transform)
 
                 goal_msg = PoseStamped()
@@ -96,10 +106,16 @@ class GoalProjectorNode:
                 goal_msg.pose.position = point_map.point
                 goal_msg.pose.position.z = 0.0
                 goal_msg.pose.orientation.w = 1.0
+                dx = -goal_msg.pose.position.x
+                dy = -goal_msg.pose.position.y
+                yaw = math.atan2(dy, dx)
+                q = quaternion_from_euler(0.0, 0.0, yaw)
+                goal_msg.pose.orientation.x = q[0]
+                goal_msg.pose.orientation.y = q[1]
+                goal_msg.pose.orientation.z = q[2]
+                goal_msg.pose.orientation.w = q[3]
 
                 self.pub.publish(goal_msg)
-                rospy.loginfo(f"Published 3D goal in '{self.target_frame}': ({point_map.point.x:.2f}, {point_map.point.y:.2f}, {point_map.point.z:.2f})")
-
             except Exception as e:
                 rospy.logwarn(f"Failed to transform point to '{self.target_frame}': {e}")
 

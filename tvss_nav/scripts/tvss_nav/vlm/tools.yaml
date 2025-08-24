@@ -1,4 +1,20 @@
 tools:
+  # - type: function
+  #   function:
+  #     name: classify_mode
+  #     description: >-
+  #       Classify a raw user instruction into one of the predefined navigation modes.
+  #       The modes are exactly: "Follow", "Goal", "Explore", "Idle".
+  #     parameters:
+  #       type: object
+  #       properties:
+  #         instruction:
+  #           type: string
+  #           description: >
+  #             The raw text of the user instruction, e.g. "just go with the doctor".
+  #       required:
+  #         - instruction
+  #       additionalProperties: false
   - type: function
     function:
       name: update_sfm_param

@@ -130,6 +130,7 @@ private:
             parsed.decay_rate = attr.get("decay_rate", 2.7685).asFloat();
             cost_attr_map_[class_name] = parsed;
         }
+        ROS_INFO("Finish processing cost attributes");
     }
 
     void processData(const sensor_msgs::PointCloud2ConstPtr& cloud_msg,

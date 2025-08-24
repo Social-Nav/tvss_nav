@@ -34,6 +34,17 @@
 #include <math.h>
 #include <mutex>
 
+#include <tvss_nav/StringStamped.h>   
+#include <unordered_map>
+#include <string>
+#include <sensor_msgs/CameraInfo.h>
+#include <sensor_msgs/CompressedImage.h>
+#include <image_geometry/pinhole_camera_model.h>
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+#include <algorithm>
+#include <sensor_msgs/Image.h>
+#include <sensor_msgs/image_encodings.h>
 namespace Upo {
 namespace Navigation {
 namespace sfm_controller {
@@ -126,6 +137,51 @@ private:
   std::mutex odom_mutex_;
   ros::Subscriber laser_sub_, people_sub_, dyn_obs_sub_, sonar_sub_;
   ros::Publisher points_pub_;
+
+    // —— 类别订阅与缓存 —— 
+  ros::Subscriber class_sub_;
+  std::unordered_map<int, std::string> class_map_;
+  std::mutex class_map_mtx_;
+
+  ros::Subscriber cam_info_sub_;     // 新增：相机内参
+ros::Subscriber label_mask_sub_;   // 新增：实例ID图（压缩PNG）
+
+image_geometry::PinholeCameraModel cam_model_;
+bool cam_ready_ = false;
+std::string camera_frame_;   // 如 "camera_color_optical_frame"
+
+cv::Mat last_label_mask_;    // 单通道 uint8，像素值=instance_id
+std::mutex mask_mtx_;
+ros::Time last_label_mask_stamp_;  // ★ 记录 mask 时间戳
+
+// 订阅回调
+void classDictCb(const tvss_nav::StringStamped::ConstPtr& msg);
+void camInfoCb(const sensor_msgs::CameraInfo::ConstPtr& msg);
+void labelMaskCb(const sensor_msgs::CompressedImage::ConstPtr& msg);
+
+// 工具函数：投影 & 读像素
+bool projectToImage(const geometry_msgs::Point& p_odom, int& u, int& v);
+int  instanceIdAt(int u, int v);
+// ---------- GSAM2: 深度 + 分割 生成 agents ----------
+  ros::Subscriber depth_sub_;
+ std::string depth_topic_;
+  cv::Mat last_depth_;                   // 深度图（float米）
+  std::mutex depth_mtx_;
+  ros::Time last_depth_stamp_;
+  bool depth_ready_ = false;
+
+  struct TrackState {
+    geometry_msgs::Point world_pt;
+    ros::Time stamp;
+  };
+  std::unordered_map<int, TrackState> track_map_; // key: semantic_instance_id
+
+  // 类别 → 半径（可参数化）
+  std::unordered_map<std::string, double> class_radius_map_;
+
+  void depthCb(const sensor_msgs::ImageConstPtr& msg);
+  void buildAgentsFromGSAM(const ros::Time& stamp); // = gsamCb
+  static inline float medianInVector(std::vector<float>& v);
 
   std::vector<sfm::Agent> agents_; // 0: robot, 1..: Others
   // sfm::Agent robot_agent_;

@@ -17,8 +17,9 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_ros
   visualization_msgs
   dynamic_obstacle_detector
+  image_geometry
 )
-
+find_package(OpenCV REQUIRED) 
 
 ## Generate dynamic reconfigure parameters in the 'cfg' folder
  generate_dynamic_reconfigure_options(
@@ -53,6 +54,7 @@ include_directories(
   include
   /usr/local/include  #to find lightsfm
   ${catkin_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -76,6 +78,7 @@ include_directories(
  target_link_libraries(sfm_controller_ros
    ${PROJECT_NAME}
    ${catkin_LIBRARIES}
+   ${OpenCV_LIBS} 
  )
 
 
@@ -95,4 +98,3 @@ install(DIRECTORY include/${PROJECT_NAME}/
   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
   PATTERN ".svn" EXCLUDE
 )
-
