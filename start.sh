@@ -78,16 +78,6 @@ gnome-terminal -- bash -c "source ~/anaconda3/etc/profile.d/conda.sh && conda ac
 gnome-terminal -- bash -c "source ~/anaconda3/etc/profile.d/conda.sh && conda activate tvsn && cd ./tvss_nav/scripts/tvss_nav && python -m vlm.vlm; exec bash" & get_new_pts
 # gnome-terminal -- bash -c "source ~/anaconda3/etc/profile.d/conda.sh && conda activate tvsn && cd ./tvss_nav/scripts/tvss_nav && python -m sampler.subgoal_sampler; exec bash" & get_new_pts
 
-
-
-# gnome-terminal -- bash -c "roslaunch tvss_nav tvss_nav.launch show_rviz:=true; exec bash" & get_new_pts
-# gnome-terminal -- bash -c "source ~/anaconda3/etc/profile.d/conda.sh && conda activate tvsn && cd ./tvss_nav/scripts/tvss_nav/tools/grounded_sam2 && python gsam2_ros_terminal.py; exec bash" & get_new_pts
-gnome-terminal -- bash -c "source ~/miniconda3/etc/profile.d/conda.sh && conda activate tvsn && cd ./tvss_nav/scripts/tvss_nav/tools/grounded_sam2 && python gsam2_ros.py; exec bash" & get_new_pts
-gnome-terminal -- bash -c "source ~/miniconda3/etc/profile.d/conda.sh && conda activate tvsn && cd ./tvss_nav/scripts/tvss_nav && python -m vlm.vlm; exec bash" & get_new_pts
-# gnome-terminal -- bash -c "source ~/miniconda3/etc/profile.d/conda.sh && conda activate tvsn && cd ./tvss_nav/scripts/tvss_nav && python -m sampler.subgoal_sampler; exec bash" & get_new_pts
-gnome-terminal -- bash -c "\
-  rostopic echo /rosout --filter \"m.level <= 16\" | sed -n 's/^[[:space:]]*msg: //p'; \
-  exec bash" & get_new_pts
 # -------- Exit handling --------
 
 echo "Press 'q' to quit, close all spawned terminals, and kill tmux session if running (or press Ctrl+C)..."
