@@ -183,6 +183,7 @@ bool SFMControllerROS::isGoalReached() { return goal_reached_; }
 
 bool SFMControllerROS::setPlan(
     const std::vector<geometry_msgs::PoseStamped> &orig_global_plan) {
+  ROS_INFO("Setting plan in SFMControllerROS...");
   if (!initialized_) {
     ROS_ERROR("This planner has not been initialized, please call initialize() "
               "before using this local planner");
@@ -201,12 +202,13 @@ bool SFMControllerROS::setPlan(
   }
   // reset the goal flag
   goal_reached_ = false;
-
+  ROS_INFO("Plan set successfully with %zu poses.", planner_path_.size());
   return true;
 }
 
 std::vector<geometry_msgs::PoseStamped> SFMControllerROS::transformPlan(
     const std::vector<geometry_msgs::PoseStamped> &plan, std::string frame) {
+      ROS_INFO("Transforming plan to frame: %s", frame.c_str());
   std::vector<geometry_msgs::PoseStamped> planner_plan;
   for (unsigned int i = 0; i < plan.size(); i++) {
     try {
@@ -218,10 +220,12 @@ std::vector<geometry_msgs::PoseStamped> SFMControllerROS::transformPlan(
       break;
     }
   }
+  ROS_INFO("Plan transformed successfully.");
   return planner_plan;
 }
 
 bool SFMControllerROS::computeVelocityCommands(geometry_msgs::Twist &cmd_vel) {
+  ROS_INFO("SFMControllerROS computeVelocityCommands called.");
   if (!initialized_) {
     ROS_ERROR("This planner has not been initialized, please call initialize() "
               "before using this planner");
@@ -256,11 +260,12 @@ bool SFMControllerROS::computeVelocityCommands(geometry_msgs::Twist &cmd_vel) {
                     "means that the footprint of the robot was in collision "
                     "for all simulated trajectories.");
     // publishPlan(transformed_plan, g_plan_pub_);
+    ROS_WARN("SFMControllerROS computeVelocityCommands failed to find a valid plan.");
     return false;
   }
   // publish information to the visualizer
   // publishPlan(transformed_plan, g_plan_pub_);
-
+  ROS_INFO("SFMControllerROS computeVelocityCommands succeeded, cmd_vel computed.");
   return true;
 }
 

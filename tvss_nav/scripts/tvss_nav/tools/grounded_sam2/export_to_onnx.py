@@ -96,9 +96,9 @@ def export_model(model: SAM2VideoPredictor, out_dir: str, file_name: str):
 if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    sam2_checkpoint = "checkpoints/sam2.1_hiera_large.pt"
-    model_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
+    sam2_checkpoint = "checkpoints/sam2.1_hiera_small.pt"
+    model_cfg = "configs/sam2.1/sam2.1_hiera_s.yaml"
 
     predictor = build_sam2_video_predictor(model_cfg, sam2_checkpoint, device=device)
 
-    export_model(predictor, out_dir="tensorrt/onnx", file_name="/hiera_l_image_encoder.onnx")
+    export_model(predictor, out_dir="tensorrt/onnx", file_name="/hiera_s_image_encoder.onnx")

@@ -28,6 +28,7 @@
 #include <cmath>
 #include <unordered_map>
 #include <vector>
+#include <ros/ros.h>
 #include <unordered_map>
 #include <vector>
 #include <string>
@@ -93,7 +94,6 @@ struct Agent {
         semantic_instance_id(-1), semantic_class("unknown"){}
 
   void move(double dt); // only if teleoperated
-
   int         semantic_instance_id;
   std::string semantic_class;
 
@@ -117,6 +117,8 @@ struct Agent {
   int groupId;
 
   int id;
+
+  std::string category;
 
   Forces forces;
   Parameters params;
@@ -243,12 +245,17 @@ inline void SocialForceModel::computeObstacleForce(Agent &agent,
 inline void
 SocialForceModel::computeSocialForce(unsigned index,
                                      std::vector<Agent> &agents) const {
+  // ROS_INFO("Begin computeSocialForce1");
+  // ROS_INFO("Begin computeSocialForce1, agents.size()=%zu",agents.size());
   Agent &agent = agents[index];
   agent.forces.socialForce.set(0, 0);
   for (unsigned i = 0; i < agents.size(); i++) {
     if (i == index) {
       continue;
     }
+    // ROS_INFO_STREAM("agent[" << i << "] id=" << agents[i].id
+    //               << " category=" << (agents[i].category.empty() ? "unknown"
+    //                                                             : agents[i].category));
     utils::Vector2d diff = agents[i].position - agent.position;
     utils::Vector2d diffDirection = diff.normalized();
     utils::Vector2d velDiff = agent.velocity - agents[i].velocity;
@@ -278,23 +285,36 @@ SocialForceModel::computeSocialForce(unsigned index,
     
   double mag = agent.forces.socialForce.norm();
   if (mag > 1e-8) {
-    double newMag = mag - 200000.0;
+    double newMag = mag - 20.0;
     agent.forces.socialForce = (agent.forces.socialForce / mag) * newMag;
   }
-  else{
-    agent.forces.socialForce.set(-10, -10);
-  }
+  // else{
+  //   agent.forces.socialForce.set(-10, -10);
+  // }
+  // ROS_INFO("SocialForce norm = %.3f", agent.forces.socialForce.norm());
 }
 
 inline void
 SocialForceModel::computeSocialForce(Agent &me,
                                      std::vector<Agent> &agents) const {
   // Agent& agent = agents[index];
+  // ROS_INFO("Begin computeSocialForce2");
+  // ROS_INFO("Begin computeSocialForce1, agents.size()=%zu",agents.size());
+  // ROS_INFO("Begin computeSocialForce2, agents.size()=%zu", agents.size());
+  for (size_t i = 0; i < agents.size(); ++i) {
+    const auto& a = agents[i];
+    // ROS_INFO("agent[%zu]: id=%d pos=(%.2f, %.2f)",
+    //         i, a.id, a.position.getX(), a.position.getY());
+  }
+
   me.forces.socialForce.set(0, 0);
   for (unsigned i = 0; i < agents.size(); i++) {
     if (agents[i].id == me.id) {
       continue;
     }
+    // ROS_INFO_STREAM("agent[" << i << "] id=" << agents[i].id
+    //               << " category=" << (agents[i].category.empty() ? "unknown"
+    //                                                             : agents[i].category));
     utils::Vector2d diff = agents[i].position - me.position;
     utils::Vector2d diffDirection = diff.normalized();
     utils::Vector2d velDiff = me.velocity - agents[i].velocity;
@@ -319,12 +339,13 @@ SocialForceModel::computeSocialForce(Agent &me,
 
     double mag = me.forces.socialForce.norm();
     if (mag > 1e-8) {
-      double newMag = mag - 200000.0;
+      double newMag = mag - 20.0;
       me.forces.socialForce = (me.forces.socialForce / mag) * newMag;
     }
-    else{
-      me.forces.socialForce.set(-10, -10);
-    }
+    // else{
+    //   me.forces.socialForce.set(-10, -10);
+    // }
+    // ROS_INFO("SocialForce norm = %.3f", me.forces.socialForce.norm());
     // if (i == 0)
     //{
     //  agent.forces.robotSocialForce =

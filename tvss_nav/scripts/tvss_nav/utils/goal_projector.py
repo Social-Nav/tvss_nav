@@ -10,7 +10,8 @@ import numpy as np
 from cv_bridge import CvBridge
 import actionlib
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
-
+import math
+from tf.transformations import quaternion_from_euler
 class GoalProjectorNode:
     def __init__(self):
         rospy.init_node('goal_projector')
@@ -78,10 +79,8 @@ class GoalProjectorNode:
             K = np.array(self.camera_info.K).reshape(3, 3)
             D = np.array(self.camera_info.D)
             uv = np.array([[[u, v]]], dtype=np.float32)
-            # print("uvuvuvuvuvuvuvuvuvuvuvv",uv)
             undistorted = cv2.undistortPoints(uv, K, D)
             x_n, y_n = undistorted[0][0]
-            # print("xnxnxnxnxnxnxnxnynynynynynynynynyny",x_n,y_n)
             x, y, z = x_n * depth, y_n * depth, depth
 
             point_cam = PointStamped()
@@ -107,37 +106,16 @@ class GoalProjectorNode:
                 goal_msg.pose.position = point_map.point
                 goal_msg.pose.position.z = 0.0
                 goal_msg.pose.orientation.w = 1.0
+                dx = -goal_msg.pose.position.x
+                dy = -goal_msg.pose.position.y
+                yaw = math.atan2(dy, dx)
+                q = quaternion_from_euler(0.0, 0.0, yaw)
+                goal_msg.pose.orientation.x = q[0]
+                goal_msg.pose.orientation.y = q[1]
+                goal_msg.pose.orientation.z = q[2]
+                goal_msg.pose.orientation.w = q[3]
 
                 self.pub.publish(goal_msg)
-                # mb_goal = MoveBaseGoal()
-                # rospy.loginfo(
-                #     # "[BEFORE send_goal] frame=%s, pos=(%.3f, %.3f, %.3f), ori=(%.3f, %.3f, %.3f, %.3f)",
-                #     mb_goal.target_pose.header.frame_id,
-                #     mb_goal.target_pose.pose.position.x,
-                #     mb_goal.target_pose.pose.position.y,
-                #     mb_goal.target_pose.pose.position.z,
-                #     mb_goal.target_pose.pose.orientation.x,
-                #     mb_goal.target_pose.pose.orientation.y,
-                #     mb_goal.target_pose.pose.orientation.z,
-                #     mb_goal.target_pose.pose.orientation.w,
-                # )
-                # mb_goal.target_pose = goal_msg
-                # # print("[BEFORE send_goal] mb_goal =", mb_goal)
-                # # rospy.loginfo(f"Sending new subgoal to move_base: ({goal_msg.pose.position.x:.2f}, {goal_msg.pose.position.y:.2f})")
-                # result = self.mb_ac.send_goal(mb_goal)
-                # rospy.loginfo(
-                #     "[AFTER send_goal ] frame=%s, pos=(%.3f, %.3f, %.3f), ori=(%.3f, %.3f, %.3f, %.3f)",
-                #     mb_goal.target_pose.header.frame_id,
-                #     mb_goal.target_pose.pose.position.x,
-                #     mb_goal.target_pose.pose.position.y,
-                #     mb_goal.target_pose.pose.position.z,
-                #     mb_goal.target_pose.pose.orientation.x,
-                #     mb_goal.target_pose.pose.orientation.y,
-                #     mb_goal.target_pose.pose.orientation.z,
-                #     mb_goal.target_pose.pose.orientation.w,
-                # )
-                # print("[AFTER send_goal] mb_goal =", mb_goal)
-                # print("[send_goal 返回值] result =", result)
             except Exception as e:
                 rospy.logwarn(f"Failed to transform point to '{self.target_frame}': {e}")
 

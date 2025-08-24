@@ -1,5 +1,13 @@
 #!/bin/bash
-
+(
+  cd ~/arena_ws/src/thirdparty/sfm/dep/lightsfm || exit 1
+  echo "📦 Cleaning previous lightsfm build..."
+  make clean
+  echo "📦 Building lightsfm..."
+  make -j$(nproc)
+  echo "📦 Installing lightsfm to /usr/local/include/lightsfm..."
+  sudo -E make install
+)
 # -------- Preparation --------
 # Function to get current pts (pseudo terminals)
 get_current_pts_set() {
@@ -44,12 +52,11 @@ cleanup() {
 trap cleanup SIGINT
 
 # -------- Launch terminal tasks --------
-
-# gnome-terminal -- bash -c "\
-#   cd tvss_nav/scripts/tvss_nav/sampler/robopoint_sampler && \
-#   roslaunch /tvss_nav/scripts/tvss_nav/sampler/robopoint_sampler/launch/robopoint_sampler.launch; \
-#   exec bash" & get_new_pts
-# sleep 1
+gnome-terminal -- bash -c "\
+  cd tvss_nav/scripts/tvss_nav/vlm && \
+  python3 query_publisher.py; \
+  exec bash" & get_new_pts
+sleep 1
 gnome-terminal -- bash -c "\
   cd tvss_nav/scripts/tvss_nav/sampler/robopoint_sampler && \
   python3 local_inference_ros.py; \
@@ -62,7 +69,14 @@ gnome-terminal -- bash -c "cd ./tmux/arena_sfm/ && tmuxinator; exec bash" & get_
 sleep 2  # Give time for roscore in tmux to start
 
 # gnome-terminal -- bash -c "cd ./tmux/semantic_tool/ && tmuxinator; exec bash" & get_new_pts
+
+
+
 gnome-terminal -- bash -c "roslaunch tvss_nav tvss_nav.launch show_rviz:=false; exec bash" & get_new_pts
+
+
+
+# gnome-terminal -- bash -c "roslaunch tvss_nav tvss_nav.launch show_rviz:=true; exec bash" & get_new_pts
 # gnome-terminal -- bash -c "source ~/anaconda3/etc/profile.d/conda.sh && conda activate tvsn && cd ./tvss_nav/scripts/tvss_nav/tools/grounded_sam2 && python gsam2_ros_terminal.py; exec bash" & get_new_pts
 gnome-terminal -- bash -c "source ~/miniconda3/etc/profile.d/conda.sh && conda activate tvsn && cd ./tvss_nav/scripts/tvss_nav/tools/grounded_sam2 && python gsam2_ros.py; exec bash" & get_new_pts
 gnome-terminal -- bash -c "source ~/miniconda3/etc/profile.d/conda.sh && conda activate tvsn && cd ./tvss_nav/scripts/tvss_nav && python -m vlm.vlm; exec bash" & get_new_pts
