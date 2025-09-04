@@ -1,0 +1,5 @@
+<launch>
+  <node name="goal_projector" pkg="tvss_nav" type="goal_projector.py" output="screen">
+    <rosparam file="$(find tvss_nav)/config/goal_projector.yaml" command="load" />
+  </node>
+</launch>

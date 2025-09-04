@@ -1,0 +1,5 @@
+{
+    "model": "gpt-4o",
+    "max_text_tokens": 1000,
+    "max_image_tokens": 1000
+}

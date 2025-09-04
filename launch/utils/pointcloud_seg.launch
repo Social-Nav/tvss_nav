@@ -1,0 +1,5 @@
+<launch>
+  <node name="seg_node" pkg="tvss_nav" type="seg_node" output="screen">
+    <rosparam file="$(find tvss_nav)/config/pointcloud_seg.yaml" command="load" />
+  </node>
+</launch>

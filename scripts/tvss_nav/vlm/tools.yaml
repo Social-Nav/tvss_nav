@@ -1,0 +1,64 @@
+tools:
+  # - type: function
+  #   function:
+  #     name: classify_mode
+  #     description: >-
+  #       Classify a raw user instruction into one of the predefined navigation modes.
+  #       The modes are exactly: "Follow", "Goal", "Explore", "Idle".
+  #     parameters:
+  #       type: object
+  #       properties:
+  #         instruction:
+  #           type: string
+  #           description: >
+  #             The raw text of the user instruction, e.g. "just go with the doctor".
+  #       required:
+  #         - instruction
+  #       additionalProperties: false
+  - type: function
+    function:
+      name: update_sfm_param
+      description: >-
+        Update a single SFM (Social Force Model) parameter using dynamic reconfigure via rosbridge.
+        Valid parameters (under /jackal/move_base_flex/SFMControllerROS/):
+        - max_lin_vel: Maximum linear velocity (m/s)
+        - max_rot_vel: Maximum angular velocity (rad/s)
+        - sfm_goal_weight: Weight of the attraction force to the goal
+        - sfm_obstacle_weight: Weight of the repulsive force of the obstacles
+        - sfm_people_weight: Weight of the repulsive force of the pedestrians
+      parameters:
+        type: object
+        properties:
+          param_name:
+            type: string
+            description: Name of the parameter to update
+          value:
+            type: number
+            description: New value for the parameter
+        required:
+          - param_name
+          - value
+        additionalProperties: false
+  - type: function
+    function:
+      name: segment_social_entities_from_name
+      description: >-
+        Segment social entities in the image based on concise descriptive names.
+        Use maximum two words to describe each entity (e.g. seated woman etc.).
+        For some objects hard to use less than two words to describe, use the major characteristic to identify them. 
+        For example, if you want to refer to a man in blue top, you can desribe as 'blue man'.
+        Multiple entities can be specified using dots to separate them. Choose distinctive 
+        attributes that uniquely identify the entity in the current scene.
+        Note: if you see two identical entities in the scene, you can just call it once. (e.g. if you want to segment two person in your view, just use 'person' as prompt instead of 'person.person')
+        And you need to make sure the prompts may not overlap with each other.(e.g. person.green person)
+      parameters:
+        type: object
+        properties:
+          object_names:
+            type: string
+            description: >-
+              Names of social entities to segment, separated by dots.
+              Example: bald man.wheelchair person.child.bench.open doors
+        required:
+          - object_names
+        additionalProperties: false
