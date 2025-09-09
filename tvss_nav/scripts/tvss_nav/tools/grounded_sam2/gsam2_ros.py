@@ -2,6 +2,7 @@ import json
 import os
 import time
 from threading import Lock
+
 import cv2
 import numpy as np
 import roslibpy
@@ -17,13 +18,6 @@ from utils.mask_dictionary_model import MaskDictionaryModel, ObjectInfo
 
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, message=".*?.*")
-
-import os, logging
-os.environ.setdefault("HF_HUB_DISABLE_XET", "1")        
-os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "1") 
-logging.basicConfig(level=logging.INFO)
-logging.getLogger("huggingface_hub").setLevel(logging.DEBUG)
-
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -52,7 +46,6 @@ def perform_init_detection(processor, grounding_model, camera_predictor, image_p
       predictor: Initialized SAM2 predictor.
       id_to_objects: Dictionary mapping object IDs to detected class labels.
     """
-    print("[GSAM2] Performing initial detection with prompt:", prompt)
     text = prompt.lower() + "."
     frame_resized = cv2.resize(frame, (width, height))
     frame_rgb = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB)
@@ -64,11 +57,11 @@ def perform_init_detection(processor, grounding_model, camera_predictor, image_p
     results = processor.post_process_grounded_object_detection(
         outputs,
         inputs.input_ids,
-        box_threshold=0.1,
-        text_threshold=0.1,
+        box_threshold=0.4,
+        text_threshold=0.4,
         target_sizes=[image_pil.size[::-1]]
     )
-    print(results)
+
     if len(results[0]["boxes"]) == 0:
         raise NoObjectDetected("No objects detected in the image.")
     
@@ -80,7 +73,7 @@ def perform_init_detection(processor, grounding_model, camera_predictor, image_p
 
     input_boxes = results[0]["boxes"].cpu().numpy()
     OBJECTS = results[0]["labels"]
-    # print("2222222222222222222222222222222222222222222222")
+
     # prompt SAM 2 image predictor to get the mask for the object
     masks, scores, logits = image_predictor.predict(
         point_coords=None,
@@ -95,14 +88,14 @@ def perform_init_detection(processor, grounding_model, camera_predictor, image_p
         logits = logits[None]
     elif masks.ndim == 4:
         masks = masks.squeeze(1)
-    # print("3333333333333333333333333333333333333333333333333333")
+
     mask_dict = MaskDictionaryModel(promote_type="mask", mask_name="0", mask_height=height, mask_width=width)
     # If you are using point prompts, we uniformly sample positive points based on the mask
     if mask_dict.promote_type == "mask":
         mask_dict.add_new_frame_annotation(mask_list=torch.tensor(masks).to(device), box_list=input_boxes.tolist(), label_list=OBJECTS, background_value=0)
     else:
         raise NotImplementedError("")
-    # print("44444444444444444444444444444444444444444444")
+
     id_to_objects = {}
     for object_id, object_info in mask_dict.labels.items():
         start_pt = np.array([object_info.x1, object_info.y1], dtype=np.float32)
@@ -111,7 +104,7 @@ def perform_init_detection(processor, grounding_model, camera_predictor, image_p
         camera_predictor.add_new_prompt(frame_idx=0, obj_id=object_id, bbox=bbox)
 
         id_to_objects[object_id] = object_info.class_name
-    # print("5555555555555555555555555555555555555555555")
+    
     return id_to_objects, mask_dict
 
 def perform_detection(processor, grounding_model, camera_predictor, image_predictor, frame, prompt, global_mask, width, height, objects_count=0):
@@ -130,7 +123,6 @@ def perform_detection(processor, grounding_model, camera_predictor, image_predic
         start_obj_id: The first obj_id assigned in this detection
         num_new: Number of objects detected
     """
-    # print("Performing detection with prompt")
     text = prompt.lower().strip() + "."
     frame_resized = cv2.resize(frame, (width, height))
     frame_rgb = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB)
@@ -315,8 +307,6 @@ def main():
     msg_lock = Lock()
     text_prompt = None
     restart_detection = False
-    # text_prompt = "person"      # 固定检测类别（不要带句号）
-    # restart_detection = True     # 启动后立刻做一次初始化检测
     global_reset_signal = False
 
     #####################
@@ -355,13 +345,7 @@ def main():
         
     def handle_text_prompt(msg):
         nonlocal text_prompt, restart_detection
-        print(f"[GSAM2] 收到分割请求: {text_prompt}")
-        # text_prompt = msg['data']  # Extract string from ROS message
-        raw = msg['data']
-        prompt = raw.strip()
-        if not prompt.endswith('.'):
-            prompt += '.'
-        text_prompt = prompt
+        text_prompt = msg['data']  # Extract string from ROS message
         restart_detection = True
         if DEBUG_MODE:
             print(f"\n[INFO] Received text prompt: {text_prompt}")
@@ -382,7 +366,7 @@ def main():
     
     if DEBUG_MODE:
         print(f"Created publisher for topic: {VISUAL_MASK_TOPIC}")
-    
+
     #####################
     # Model initialization
     #####################
@@ -394,30 +378,14 @@ def main():
     camera_predictor = build_sam2_camera_predictor(MODEL_CFG, SAM2_CHECKPOINT)
     sam2_image_model = build_sam2(MODEL_CFG, SAM2_CHECKPOINT, device=device)
     image_predictor = SAM2ImagePredictor(sam2_image_model)
-    # from transformers import PretrainedProcessor
-    # # tell it to also look for preprocessor_config.json
-    # PretrainedProcessor.config_struct = PretrainedProcessor.config_struct._replace(
-    #     config_file_names=("processor_config.json", "preprocessor_config.json")
-    # )
-    # from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection
 
-    # from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection
+    processor = AutoProcessor.from_pretrained(MODEL_ID)
+    grounding_model = AutoModelForZeroShotObjectDetection.from_pretrained(MODEL_ID).to(device)
 
-    # print("begin loading Grounded-SAM model and processor...")
-
-    LOCAL_PATH = "/home/gavin0576/models/grounding-dino-base"
-
-    processor = AutoProcessor.from_pretrained(LOCAL_PATH, local_files_only=True)
-    grounding_model = AutoModelForZeroShotObjectDetection.from_pretrained(LOCAL_PATH, local_files_only=True).to(device)
-
-    
-    # processor = AutoProcessor.from_pretrained(MODEL_ID,token=None)
-    # grounding_model = AutoModelForZeroShotObjectDetection.from_pretrained(MODEL_ID,token=None).to(device)
-    # print("Finished loading Grounded-SAM model and processor.")
     id_to_objects = None
     sam2_masks = MaskDictionaryModel()
 
-    rate = 2
+    rate = 0.1
     detection_timeout = 5
     # detection_timeout = np.inf
 
@@ -442,19 +410,16 @@ def main():
                 locked_frame, locked_frame_ts, locked_frame_link = image_msg_parser(global_msg)
 
             if restart_detection and text_prompt:
-                # print("start-------------------------------------------------------------")
                 try:
-                    # print("trytrytrytrytrytry")
                     if not initialized:
-                        # if DEBUG_MODE:
-                        print(f"[INFO] Initializing detection with prompt: {text_prompt}")
+                        if DEBUG_MODE:
+                            print(f"\n[INFO] Initializing detection with prompt: {text_prompt}")
 
                         id_to_objects, mask_dict = perform_init_detection(
                             processor, grounding_model, camera_predictor, image_predictor, locked_frame, text_prompt, WIDTH, HEIGHT)
                         sam2_masks = mask_dict
 
                         initialized = True
-                        print(f"[INFO] Initialized with {len(id_to_objects)} objects.")
                     else:
                         try:
                             out_obj_ids, out_mask_logits, frame_resized = track_frame(camera_predictor, locked_frame, WIDTH, HEIGHT)
@@ -464,11 +429,9 @@ def main():
                                     obj_info = sam2_masks.labels[obj_id]
                                     obj_info.mask = mask_binary
                                     obj_info.update_box()
-                            print(f"[INFO] Tracking {len(out_obj_ids)} objects.")
                         except Exception as e:
-                            print(f"[Warning] All tracking lost.")
+                            print(f"\n[Warning] All tracking lost.")
                             # print(f"\n[Error] {e}")
-                            time.sleep(rate)
                             pass
                         
                         camera_predictor.reset_state()
@@ -486,17 +449,13 @@ def main():
 
                     restart_detection = False
                 except NoObjectDetected as e:
-                    print("omgomgomgomgomgomgomgomgomgomgomgomgomgomgomgomgomgomgomgomg")
-                    time.sleep(rate)
+                    # print(f"\n[Warning] {e}")
                     continue
                 except Exception as e:
-                    print(f"[Error] Detection failed: {e}")
-                    time.sleep(rate)
+                    print(f"\n[Error] Detection failed: {e}")
                     continue
-            if text_prompt is not None:
-                print(f"[INFO] Processing frame at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(locked_frame_ts[0]))} with prompt1: {text_prompt}")
+
             if not initialized:
-                print("[Warning] Predictor not initialized. Waiting for initialization...")
                 time.sleep(rate)
                 continue
 
@@ -520,16 +479,15 @@ def main():
                     obj_info.mask = mask_binary  # Set the binary mask
                     # Optionally update other fields like bounding box if required
                     obj_info.update_box()
-            # print("start visualizing detections...")
+
             visual_mask = visualize_detections(frame_resized, out_obj_ids, out_mask_logits, id_to_objects)
-            # cv2.imshow("Segmented Frame", visual_mask)
-            # if cv2.waitKey(1) & 0xFF == ord('q'):
-            #     print("Exiting main")
-            #     break
-            # print("start visualizing masks...")
+            cv2.imshow("Segmented Frame", visual_mask)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                print("Exiting main")
+                break
+            
             publish_visual_mask(overlay_publisher, visual_mask, locked_frame_ts, locked_frame_link)
             publish_instance_class_dict(inst_class_publisher, id_to_objects, locked_frame_ts, locked_frame_link)
-            print("start publishing label mask...xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
             publish_label_mask(mask_publisher, frame_resized, out_obj_ids, out_mask_logits, locked_frame_ts, locked_frame_link)
             
             time.sleep(rate)
@@ -600,7 +558,7 @@ def publish_label_mask(publisher, frame_resized, out_obj_ids, out_mask_logits, t
     """
 
     all_mask = np.zeros((frame_resized.shape[0], frame_resized.shape[1]), dtype=np.uint8)  # HxW
-    print(f"[INFO] Publishing label mask with {len(out_obj_ids)} objects.")
+
     for i, obj_id in enumerate(out_obj_ids):
         out_mask = (out_mask_logits[i] > 0.0).permute(1, 2, 0).cpu().numpy().astype(np.uint8)
         if out_mask.ndim == 3 and out_mask.shape[-1] == 1:
@@ -616,7 +574,7 @@ def publish_label_mask(publisher, frame_resized, out_obj_ids, out_mask_logits, t
     mask_msg = create_compressed_image_message(all_mask, format='png', quality=3, timestamp=timestamp, frame_link=frame_link)
 
     publisher.publish(roslibpy.Message(mask_msg))
-    print(f"[INFO] Label mask published with {len(out_obj_ids)} objects.")
+
 
 if __name__ == "__main__":
     try:
