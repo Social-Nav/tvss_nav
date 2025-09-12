@@ -5,20 +5,31 @@ from typing import List, Dict, Optional
 
 def extract_json_from_markdown(text: str) -> Optional[str]:
     """
-    Extract the first JSON object enclosed in ```json ... ``` block from the given text.
+    Extract the first JSON object from the given text.
+    Supports both markdown code blocks (```json ... ```) and plain JSON.
 
     Parameters:
-        text (str): The full markdown text containing a JSON code block.
+        text (str): The text containing JSON, either in markdown format or plain JSON.
 
     Returns:
-        dict: The parsed JSON object if found, else None.
+        str: The JSON string if found, else None.
     """
     try:
+        # First try to find JSON in markdown code block
         match = re.search(r"```json\s*(\{.*?\})\s*```", text, re.DOTALL)
-        if not match:
-            return None
-        json_str = match.group(1)
-        return json_str
+        if match:
+            json_str = match.group(1)
+            return json_str
+        
+        # If no markdown block found, try to find plain JSON object
+        match = re.search(r"(\{.*?\})", text, re.DOTALL)
+        if match:
+            json_str = match.group(1)
+            # Validate that it's actually JSON
+            json.loads(json_str)
+            return json_str
+            
+        return None
     except json.JSONDecodeError as e:
         print(f"[extract_json_from_markdown] Failed to decode JSON: {e}")
     return None

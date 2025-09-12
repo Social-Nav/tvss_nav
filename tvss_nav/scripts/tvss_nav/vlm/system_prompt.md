@@ -134,7 +134,7 @@ You must **always output your response in the following strict JSON format** to 
 You must **always output your response in the following strict JSON format** to ensure tool invocation works correctly
 You must **always output your response in the following strict JSON format** to ensure tool invocation works correctly
 You must **always output your response in the following strict JSON format** to ensure tool invocation works correctly
-Here is an example:
+Here is an example (Must be wrapped by ```json and ```):
 
 ```json
 {

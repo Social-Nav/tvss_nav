@@ -25,7 +25,6 @@ log_file = os.path.join(log_dir, f"vlm_log.txt")
 log_fp = open(log_file, "w")
 
 def log(msg: str):
-    # print(msg)
     s = msg if isinstance(msg, str) else (
         json.dumps(msg, ensure_ascii=False) if isinstance(msg, (dict, list)) else str(msg)
     )
@@ -252,7 +251,7 @@ class VLM:
             return None
             
         json_str = extract_json_from_markdown(assistant_content)
-        print("json_str: ", json_str)
+        # print("json_str: ", json_str)
         # Parse tool calls
         tool_calls = parse_tool_calls(json_str)
         if tool_calls:
@@ -268,8 +267,7 @@ class VLM:
                         log(msg)
                         text_msg = {'data': object_names.strip()}
                         self.text_publisher.publish(roslibpy.Message(text_msg))
-                        log(f"[VLM] Published segment prompt: {text_msg}")
-                        
+
                         # Extract and publish cost_attributes
                         cost_attrs = params.get('cost_attributes', {})
 
@@ -279,7 +277,6 @@ class VLM:
                                 log(f"[WARN] Missing cost attributes for object: {obj}")
 
                         try:
-                            log("Publishing cost attributes….......................................................................................")
                             # Convert cost_attributes dictionary to JSON string
                             cost_json = json.dumps(cost_attrs)
                             self.cost_attr_publisher.publish(roslibpy.Message({'data': cost_json}))
