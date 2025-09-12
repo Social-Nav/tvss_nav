@@ -65,7 +65,7 @@ public:
         rgb_info_sub_ = nh_.subscribe(rgb_info_topic_, 1, &PointCloudSegNode::handleRgbInfo, this);
         cost_attr_sub_ = nh_.subscribe(cost_attribute_topic_, 1, &PointCloudSegNode::handleCostAttr, this);
 
-        sync_.reset(new Sync(ExactSyncPolicy(10), cloud_sub_, mask_sub_, instance_class_sub_));
+        sync_.reset(new Sync(ExactSyncPolicy(100), cloud_sub_, mask_sub_, instance_class_sub_));
         sync_->registerCallback(boost::bind(&PointCloudSegNode::processData, this, _1, _2, _3));
 
         semantic_pub_ = nh_.advertise<tvss_nav::SemanticInstanceArray>(instance_array_topic_, 1);
@@ -130,7 +130,6 @@ private:
             parsed.decay_rate = attr.get("decay_rate", 2.7685).asFloat();
             cost_attr_map_[class_name] = parsed;
         }
-        ROS_INFO("Finish processing cost attributes");
     }
 
     void processData(const sensor_msgs::PointCloud2ConstPtr& cloud_msg,
