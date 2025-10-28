@@ -1,6 +1,6 @@
 # 🧭 VLM-Social-Nav Tasks
 
-This repository provides **five modular navigation nodes** (`task1_node.py` ~ `task5_node.py`) for social and object-goal navigation using **Vision-Language Models (VLMs)**.  
+This repository serves as a baseline implementation for Task-Oriented Visual-Semantic Social Navigation. It provides **five modular navigation nodes** (`task1_node.py` ~ `task5_node.py`) for social and object-goal navigation using **Vision-Language Models (VLMs)**.  
 Each node handles a specific autonomous behavior (e.g., following a person, go to the front desk, or navigating to a pallet jack) and shares a **unified configuration file** (`config/params.yaml`) for parameter management.
 
 ---
