@@ -1,0 +1,96 @@
+# ============================================================
+# Unified Configuration for task1_node.py ... task5_node.py
+# Place this file under config/params.yaml (or specify via env var VLM_SOCIAL_CFG)
+# ============================================================
+
+# -------------------- ROS Topics --------------------
+rgb_topic: /camera/color/image_raw/compressed        # RGB image topic (used in all tasks)
+depth_topic: /camera/aligned_depth_to_color/image_raw  # Depth image topic
+cmd_vel_topic: /jackal/cmd_vel                      # Command velocity topic
+
+# Reference frames (optional)
+base_frame: base_link
+odom_frame: odom
+
+# -------------------- Weights & Limits --------------------
+# Overall weights for cost components
+alpha: 0.3        # Weight for C_goal / environment term
+beta: 1.0         # Weight for C_obst (obstacle cost)
+gamma: 0.8        # Weight for C_social (VLM consistency term)
+
+# Internal weights for the social cost
+wl: 1.0           # Weight on linear velocity deviation
+wa: 1.0           # Weight on angular velocity deviation
+
+# Velocity limits
+v_max: 0.5
+w_max: 1.2
+
+# -------------------- Candidate Actions & Frequencies --------------------
+# Whether to enable dynamic candidate generation (only task3 uses this)
+dynamic_candidates: true
+
+# Static candidate actions (used if dynamic_candidates is false or not supported)
+candidate_actions:
+  - [0.25,  0.50]
+  - [0.25,  0.25]
+  - [0.25,  0.00]
+  - [0.25, -0.25]
+  - [0.25, -0.50]
+  - [0.10,  0.60]
+  - [0.10,  0.00]
+  - [0.10, -0.60]
+  - [0.00,  0.70]
+  - [0.00,  0.00]
+  - [0.00, -0.70]
+  - [-0.10, 0.30]
+  - [-0.10, 0.00]
+  - [-0.10, -0.30]
+
+# Thread frequencies
+publish_frequency: 20.0     # Frequency for publishing /cmd_vel (Hz)
+planner_frequency: 10.0     # Frequency for planner loop (Hz)
+
+# -------------------- Execution Timing --------------------
+# Duration to hold one candidate action (used by task1/3)
+action_duration_sec: 0.8
+
+# For segmented execution (used by task4/5)
+segment_sec: 1.5            # Duration to execute each VLM suggestion
+vlm_period_sec: 4.0         # Period between two VLM calls (decoupled timing)
+
+# VLM query decimation (used by task1/3)
+vlm_every_n: 3
+
+# Optional speed scaling and attraction (used by task3/4/5)
+speed_scale: 1.0            # Scale factor for final linear velocity
+vlm_pull: 0.5               # Weight pulling angular velocity toward VLM suggestion [0~1]
+vlm_speed_nudge: 0.5        # Weight nudging linear velocity toward VLM suggestion [0~1]
+
+# -------------------- Perception / Heuristics --------------------
+# YOLO person detection threshold (used by task1/3)
+yolo_conf: 0.35
+
+# Target person parameters (task3)
+target_person_scale: 0.008
+person_penalty_k: 8.0
+
+# Openness and turning bias (task3)
+env_penalty_k: 0.8
+turn_bias_k: 0.6
+
+# -------------------- Depth-based Obstacle Avoidance --------------------
+obs_stop_dist: 0.55         # Emergency stop distance (m)
+obs_warn_dist: 1.00         # Start distance for speed limitation (m)
+obs_roi_y0: 0.70            # Start of depth ROI (relative image height [0..1])
+obs_max_depth: 4.0          # Clamp depth values to this maximum (m)
+obs_near_frac_gain: 1.2     # Gain for near-occupancy cost
+obs_turn_bias_gain: 0.25    # Gain for lateral turning bias
+
+# -------------------- VLM / API --------------------
+# API key priority: this field > environment variable OPENAI_API_KEY
+vlm_api_key: ""
+
+# If true, call VLM only when social cues are detected (task1/2)
+use_vlm_only_when_social: true
+
