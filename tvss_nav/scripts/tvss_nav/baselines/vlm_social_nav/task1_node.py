@@ -245,7 +245,7 @@ class VLMCostScorer:
             "speed up":  0.50,
             "stop":      0.00,
         }
-        # Prompt mirrors Fig.3 in the paper
+        # Prompt 
         self.prompt_template = (
             "Task: How will you navigate with respect to the person(s) in view?\n"
             "Follow general walking etiquette.\n\n"
