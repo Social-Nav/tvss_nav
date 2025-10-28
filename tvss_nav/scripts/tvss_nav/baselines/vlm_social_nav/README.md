@@ -9,11 +9,11 @@ Each node handles a specific autonomous behavior (e.g., following a person, go t
 
 ```
 vlm_social_nav/
-├── task1_node.py         # Task 1: Follow person (VLM-guided)
-├── task2_node.py         # Task 2: Social-aware navigation
-├── task3_node.py         # Task 3: Obstacle-aware person following
-├── task4_node.py         # Task 4: Go-to-front-desk navigation
-├── task5_node.py         # Task 5: Go-to-pallet-jack (warehouse)
+├── task1_node.py         # Task 1: Follow a person
+├── task2_node.py         # Task 2: Navigate to a front desk
+├── task3_node.py         # Task 3: Stay in the public area 
+├── task4_node.py         # Task 4: Go to the pallet jack without paying attention to safety markings
+├── task5_node.py         # Task 5: Go to the pallet jack and pay attention to safety markings
 ├── config/
 │   └── params.yaml       # Unified configuration file (editable)
 └── README.md             # This document
@@ -28,7 +28,7 @@ You can modify this file to tune navigation weights, topics, or timing without e
 
 **Example:**
 ```bash
-vlm_api_key: "sk-xxxx"
+vlm_api_key: ""
 alpha: 0.3
 beta: 1.0
 gamma: 0.8
