@@ -83,3 +83,4 @@ tvss_nav/scripts/tvss_nav/tools/grounded_sam2/checkpoints/
 arena/
 extern/
 planners/
+SemanticInstanceArray
