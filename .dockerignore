@@ -1,0 +1,10 @@
+.git
+build
+devel
+logs
+*.pyc
+__pycache__
+*.log
+*.bag
+vlt_data
+*.csv

@@ -1,0 +1,55 @@
+ARG BASE_IMAGE=rwthika/ros-torch:noetic-desktop-full-torch2.1.0-v25.02
+FROM ${BASE_IMAGE}
+LABEL base.image=${BASE_IMAGE}
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG ROS_DISTRO=noetic
+ARG LISN_WS_DIR=/root/lisn_ws
+ARG CONDA_DIR=/opt/conda
+ARG SKIP_INSTALL=1
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+    ROS_DISTRO=${ROS_DISTRO} \
+    LISN_WS_DIR=${LISN_WS_DIR} \
+    CONDA_DIR=${CONDA_DIR} \
+    PATH=${CONDA_DIR}/bin:${PATH}
+
+SHELL ["/bin/bash", "-lc"]
+
+# Install minimal additional OS dependencies (catkin tools, ros tools, X11 and Foxglove)
+# Base image already has most ROS tools, just install missing GUI tools
+RUN apt-get update --ignore-missing || apt-get update --allow-unauthenticated || true \
+    && apt-get install -y --no-install-recommends \
+        x11-apps mesa-utils \
+        && rm -rf /var/lib/apt/lists/*
+
+# Ensure rosdep is initialised
+RUN rosdep init || true && rosdep update || true
+
+# Create workspace - by default we do not run the full bootstrap (SKIP_INSTALL=1)
+RUN mkdir -p ${LISN_WS_DIR}/src
+WORKDIR ${LISN_WS_DIR}
+
+# Note: Source code will be mounted as volume at runtime, not copied into image
+# This allows for live development and access to generated files/results
+
+# Expose standard ROS and Foxglove ports
+EXPOSE 11311 8765
+
+# If requested, bootstrap and build the workspace at build time. Setting SKIP_INSTALL=0 will perform
+# a full install and build (this will be slower but reproducible). By default we skip install to enable fast dev iterations.
+RUN if [ "${SKIP_INSTALL}" = "0" ]; then \
+      source /opt/ros/${ROS_DISTRO}/setup.bash; \
+      bash src/tvss_nav/install_lisn_ws.sh; \
+      catkin config --source-space src || true; \
+      catkin build || true; \
+    else \
+      echo "Skipping workspace install/build (SKIP_INSTALL=1)."; \
+    fi
+
+# Copy entrypoint and set defaults
+ENV ROS_ENTRYPOINT=/usr/local/bin/ros_entrypoint.sh
+COPY docker/entrypoint.sh ${ROS_ENTRYPOINT}
+RUN chmod +x ${ROS_ENTRYPOINT}
+
+ENTRYPOINT ["/usr/local/bin/ros_entrypoint.sh"]
+CMD ["bash"]

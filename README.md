@@ -1,6 +1,6 @@
 # Task-Oriented Visual-Semantic Social Navigation (`tvss_nav`)
 
-This repository contains the `tvss_nav` ROS package and an installation script that provisions a ready-to-use Catkin workspace under `~/tvsn_ws`. It is intended for external users and customers who want to deploy or evaluate the navigation stack with minimal manual setup.
+This repository contains the `tvss_nav` ROS package and an installation script that provisions a ready-to-use Catkin workspace under `~/lisn_ws`. It is intended for external users and customers who want to deploy or evaluate the navigation stack with minimal manual setup.
 
 The software targets **ROS Noetic on Ubuntu 20.04**.
 
@@ -35,7 +35,7 @@ The software targets **ROS Noetic on Ubuntu 20.04**.
 
 ## 2. One-Click Workspace Installation
 
-This repository includes a convenience script that bootstraps a complete workspace at `~/tvsn_ws`, including:
+This repository includes a convenience script that bootstraps a complete workspace at `~/lisn_ws`, including:
 - `tvss_nav` (navigation package)
 - `tvsn_msgs` (message definitions)
 - `dynamic_obstacle_detector` (forked)
@@ -45,36 +45,36 @@ This repository includes a convenience script that bootstraps a complete workspa
 ```bash
 git clone <this-repo-url> tvss_nav
 cd tvss_nav
-bash install_tvsn_ws.sh
+bash install_lisn_ws.sh
 
 # The script will:
-# - Create a Catkin workspace (src + dependencies) under ~/tvsn_ws
+# - Create a Catkin workspace (src + dependencies) under ~/lisn_ws
 # - Clone tvss_nav and the forked tvsn_msgs/dynamic_obstacle_detector/sfm_local_controller/lightsfm
 # - Build and install lightsfm (path: dependencies/sfm/lightsfm)
 # - Run rosdep to install ROS dependencies
 # - Build the workspace with catkin (catkin build or catkin_make)
 
 # After completion:
-source ~/tvsn_ws/devel/setup.bash
+source ~/lisn_ws/devel/setup.bash
 ```
 
 Configurable parameters (environment variables):
-- `TVSN_WS_DIR` (default `~/tvsn_ws`)
-- `TVSN_REMOTE`
-- `TVSN_MSGS_REMOTE`
-- `TVSN_DOD_REMOTE`
-- `TVSN_SFM_REMOTE`
-- `TVSN_LIGHTSFM_REMOTE`
+- `LISN_WS_DIR` (default `~/lisn_ws`)
+- `LISN_REMOTE`
+- `LISN_MSGS_REMOTE`
+- `LISN_DOD_REMOTE`
+- `LISN_SFM_REMOTE`
+- `LISN_LIGHTSFM_REMOTE`
 
-If the target directory is not empty, set `TVSN_FORCE=1` to reuse it.
+If the target directory is not empty, set `LISN_FORCE=1` to reuse it.
 
 ## 3. Python Environment
 
 The installation script does not create a Python environment. We recommend using Conda:
 
 ```bash
-conda create -n tvsn python=3.11
-conda activate tvsn
+conda create -n lisn python=3.11
+conda activate lisn
 
 # Install a PyTorch build compatible with your CUDA toolchain (example for CUDA 11.8)
 pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 \
