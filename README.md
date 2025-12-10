@@ -33,6 +33,33 @@ The software targets **ROS Noetic on Ubuntu 20.04**.
   - Python 3.11 (recommended via Conda)
   - CUDA-compatible PyTorch build (version depends on your GPU / driver)
 
+### 1.1 Arena-Rosnav Environment (Required for Simulation)
+
+This project relies on the Arena-Rosnav simulation environment (Arena + Pedsim). Install it before running the simulation launch files:
+
+```bash
+# In your Catkin workspace, e.g. ~/tvsn_ws/src
+git clone git@github.com:Arena-Rosnav/arena-rosnav.git
+cd arena-rosnav
+git checkout 6ad00193b17cccf160753b97da950b49ca0371c7
+
+# Clone the Arena-Rosnav docs / meta repository (arena3 branch)
+cd ..
+git clone --branch arena3 https://github.com/Arena-Rosnav/.github.git
+```
+
+Then follow the installation and setup instructions for Arena-Rosnav described in the `.github` repository (branch `arena3`) to finish configuring the simulation environment.
+
+After you have a working original Arena-Rosnav setup, you can replace the default simulation configuration with the one used in this `tvss_nav` project:
+
+```bash
+cd ~/arena_ws/src/arena
+rm -rf simulation-setup
+git clone git@github.com:Social-Nav/simulation-setup.git
+```
+
+The `Social-Nav/simulation-setup` repository contains the simulation configuration used during the development of `tvss_nav`.
+
 ## 2. One-Click Workspace Installation
 
 This repository includes a convenience script that bootstraps a complete workspace at `~/lisn_ws`, including:
@@ -157,13 +184,8 @@ python -m vlm.vlm
 Additional tools (for example samplers and goal projectors) are described in `tmux/vlm_tools/.tmuxinator.yml`.
 
 ## 5. Reference Files and Utilities
-
-- `tmux/arena_sfm/.tmuxinator.yml`  
-  Tmux layout for simulation, dynamic reconfigure, joystick teleop, and command relays.
-- `tmux/vlm_tools/.tmuxinator.yml`  
-  Tmux layout for visual–semantic tools (VLM, grounded SAM 2, samplers, etc.).
-- `start.sh` / `visual_semantic.sh`  
-  Internal helper scripts for spawning multiple `gnome-terminal` instances and tmux sessions. For production use, we recommend the explicit `roslaunch` and Python commands listed above.
+- `install_tvsn_ws.sh`  
+  One-click installation script for the Catkin workspace.
 - `requirements.txt`  
   Python dependency list (excluding PyTorch and its companion packages, which should be installed according to your CUDA configuration).
 
@@ -186,8 +208,3 @@ Additional tools (for example samplers and goal projectors) are described in `tm
   and install any reported missing system packages.
 
 ## 7. Licensing and Support
-
-- The `package.xml` currently contains a placeholder license (`TODO`). Before public distribution, please update it to the appropriate license (for example BSD or MIT) and ensure consistency with all bundled or required third‑party components.
-- For customer deployments and technical support, we recommend:
-  - Adding a maintainer contact (name and email) in `package.xml`.
-  - Documenting the official support channel (e.g. GitHub issues or a dedicated ticketing system) in this README.
