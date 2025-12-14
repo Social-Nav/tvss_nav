@@ -60,6 +60,14 @@ git clone git@github.com:Social-Nav/simulation-setup.git
 
 The `Social-Nav/simulation-setup` repository contains the simulation configuration used during the development of `tvss_nav`.
 
+If you are using the Arena evaluation package, you can similarly replace the default evaluation directory with the Social-Nav fork:
+
+```bash
+cd ~/arena_ws/src/arena/evaluation
+rm -rf arena_evaluation
+git clone git@github.com:Social-Nav/arena_evaluation.git
+```
+
 ## 2. One-Click Workspace Installation
 
 This repository includes a convenience script that bootstraps a complete workspace at `~/lisn_ws`, including:
