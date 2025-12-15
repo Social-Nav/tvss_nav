@@ -6,45 +6,84 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG ROS_DISTRO=noetic
 ARG LISN_WS_DIR=/root/lisn_ws
 ARG CONDA_DIR=/opt/conda
-ARG SKIP_INSTALL=1
+ARG RUN_BOOTSTRAP=0
+ARG LISN_SKIP_FETCH=0
+ARG LISN_SKIP_ROSDEP=0
+ARG LISN_SKIP_LIGHTSFM_BUILD=0
+ARG LISN_SKIP_BUILD=0
+
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8 \
     ROS_DISTRO=${ROS_DISTRO} \
     LISN_WS_DIR=${LISN_WS_DIR} \
     CONDA_DIR=${CONDA_DIR} \
-    PATH=${CONDA_DIR}/bin:${PATH}
+    PATH=${CONDA_DIR}/bin:${PATH} \
+    LISN_SKIP_ROSDEP=1
 
 SHELL ["/bin/bash", "-lc"]
 
-# Install minimal additional OS dependencies (catkin tools, ros tools, X11 and Foxglove)
-# Base image already has most ROS tools, just install missing GUI tools
+# Install base tooling and add the ROS apt repository with a fresh key.
 RUN apt-get update --ignore-missing || apt-get update --allow-unauthenticated || true \
-    && apt-get install -y --no-install-recommends \
-        x11-apps mesa-utils \
-        && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y --no-install-recommends git curl gnupg2 lsb-release ca-certificates \
+    && curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key | gpg --dearmor -o /usr/share/keyrings/ros-archive-keyring.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros1-latest.list
 
-# Ensure rosdep is initialised
+# Install required OS/ROS dependencies. Base image already ships ROS and CUDA-enabled PyTorch.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential x11-apps mesa-utils \
+        python3-vcstool python3-rosinstall-generator python3-rosinstall python3-catkin-tools\
+        ros-${ROS_DISTRO}-navigation \
+        ros-${ROS_DISTRO}-nav-core \
+        ros-${ROS_DISTRO}-move-base \
+        ros-${ROS_DISTRO}-dynamic-reconfigure \
+        ros-${ROS_DISTRO}-costmap-2d \
+        ros-${ROS_DISTRO}-pcl-ros \
+        ros-${ROS_DISTRO}-cv-bridge \
+        ros-${ROS_DISTRO}-rosbridge-server \
+        ros-${ROS_DISTRO}-foxglove-bridge \
+        ros-${ROS_DISTRO}-image-transport \
+        ros-${ROS_DISTRO}-message-filters \
+        ros-${ROS_DISTRO}-gazebo-ros \
+        ros-${ROS_DISTRO}-gazebo-plugins \
+        ros-${ROS_DISTRO}-joint-state-publisher \
+        ros-${ROS_DISTRO}-robot-state-publisher \
+        ros-${ROS_DISTRO}-xacro \
+        ros-${ROS_DISTRO}-tf2-geometry-msgs \
+        ros-${ROS_DISTRO}-geometry-msgs \
+        ros-${ROS_DISTRO}-tf2-sensor-msgs \
+        ros-${ROS_DISTRO}-costmap-converter \
+        ros-${ROS_DISTRO}-teb-local-planner \
+        ros-${ROS_DISTRO}-sensor-msgs \
+        ros-${ROS_DISTRO}-std-msgs \
+        ros-${ROS_DISTRO}-visualization-msgs \
+        ros-${ROS_DISTRO}-nlopt \
+        ros-${ROS_DISTRO}-control-box-rst \
+    && rm -rf /var/lib/apt/lists/*
+
+# Initialize rosdep for dependency resolution inside the image
 RUN rosdep init || true && rosdep update || true
 
-# Create workspace - by default we do not run the full bootstrap (SKIP_INSTALL=1)
-RUN mkdir -p ${LISN_WS_DIR}/src
 WORKDIR ${LISN_WS_DIR}
+RUN mkdir -p ${LISN_WS_DIR}/src
 
-# Note: Source code will be mounted as volume at runtime, not copied into image
-# This allows for live development and access to generated files/results
+# Copy the tvss_nav repository into the image (can be overmounted for live development)
+COPY . ${LISN_WS_DIR}/src/tvss_nav
+
+# Do not bootstrap by default; leave cloning/building to install_lisn_ws.sh at runtime.
+RUN if [ "${RUN_BOOTSTRAP}" = "1" ]; then \
+            source /opt/ros/${ROS_DISTRO}/setup.bash; \
+            export LISN_WS_DIR=${LISN_WS_DIR}; \
+            export LISN_SKIP_FETCH=${LISN_SKIP_FETCH}; \
+            export LISN_SKIP_ROSDEP=${LISN_SKIP_ROSDEP}; \
+            export LISN_SKIP_LIGHTSFM_BUILD=${LISN_SKIP_LIGHTSFM_BUILD}; \
+            export LISN_SKIP_BUILD=${LISN_SKIP_BUILD}; \
+            bash ${LISN_WS_DIR}/src/tvss_nav/install_lisn_ws.sh; \
+        else \
+            echo "Skipping workspace bootstrap (RUN_BOOTSTRAP=0). Build at container runtime."; \
+        fi
 
 # Expose standard ROS and Foxglove ports
 EXPOSE 11311 8765
-
-# If requested, bootstrap and build the workspace at build time. Setting SKIP_INSTALL=0 will perform
-# a full install and build (this will be slower but reproducible). By default we skip install to enable fast dev iterations.
-RUN if [ "${SKIP_INSTALL}" = "0" ]; then \
-      source /opt/ros/${ROS_DISTRO}/setup.bash; \
-      bash src/tvss_nav/install_lisn_ws.sh; \
-      catkin config --source-space src || true; \
-      catkin build || true; \
-    else \
-      echo "Skipping workspace install/build (SKIP_INSTALL=1)."; \
-    fi
 
 # Copy entrypoint and set defaults
 ENV ROS_ENTRYPOINT=/usr/local/bin/ros_entrypoint.sh

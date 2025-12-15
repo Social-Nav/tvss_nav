@@ -12,7 +12,6 @@
 #   LISN_SFM_REMOTE       : sfm_local_controller fork URL
 #   LISN_MSGS_REMOTE      : tvsn_msgs git URL
 #   LISN_LIGHTSFM_REMOTE  : lightsfm fork URL
-#   LISN_FORCE=1          : allow using a non-empty workspace directory
 
 set -euo pipefail
 
@@ -20,84 +19,87 @@ log()  { printf '[lisn] %s\n' "$*" >&2; }
 err()  { printf '[lisn][ERROR] %s\n' "$*" >&2; }
 warn() { printf '[lisn][WARN] %s\n' "$*" >&2; }
 
+# Execution toggles (override via environment when needed)
+LISN_SKIP_FETCH=${LISN_SKIP_FETCH:-0}
+LISN_SKIP_ROSDEP=${LISN_SKIP_ROSDEP:-0}
+LISN_SKIP_LIGHTSFM_BUILD=${LISN_SKIP_LIGHTSFM_BUILD:-0}
+LISN_SKIP_BUILD=${LISN_SKIP_BUILD:-0}
+LISN_FORCE=${LISN_FORCE:-1}
+LISN_SKIP_ARENA=${LISN_SKIP_ARENA:-0}
+
+CPU_COUNT="$(if command -v nproc >/dev/null 2>&1; then nproc; else echo 4; fi)"
+LISN_PARALLEL_JOBS=${LISN_PARALLEL_JOBS:-$CPU_COUNT}
+
 # Workspace root
 WS_DIR="${LISN_WS_DIR:-$HOME/lisn_ws}"
 
 # Default remotes (override via env if needed)
-LISN_REMOTE="${LISN_REMOTE:-git@github.com:Social-Nav/tvss_nav.git}"
-LISN_DOD_REMOTE="${LISN_DOD_REMOTE:-git@github.com:Social-Nav/dynamic_obstacle_detector.git}"
-LISN_SFM_REMOTE="${LISN_SFM_REMOTE:-git@github.com:Social-Nav/sfm_local_controller.git}"
-LISN_MSGS_REMOTE="${LISN_MSGS_REMOTE:-git@github.com:Social-Nav/tvsn_msgs.git}"
-LISN_LIGHTSFM_REMOTE="${LISN_LIGHTSFM_REMOTE:-git@github.com:Social-Nav/lightsfm.git}"
+LISN_REMOTE="${LISN_REMOTE:-https://github.com/Social-Nav/tvss_nav.git}"
+LISN_DOD_REMOTE="${LISN_DOD_REMOTE:-https://github.com/Social-Nav/dynamic_obstacle_detector.git}"
+LISN_SFM_REMOTE="${LISN_SFM_REMOTE:-https://github.com/Social-Nav/sfm_local_controller.git}"
+LISN_MSGS_REMOTE="${LISN_MSGS_REMOTE:-https://github.com/Social-Nav/tvsn_msgs.git}"
+LISN_LIGHTSFM_REMOTE="${LISN_LIGHTSFM_REMOTE:-https://github.com/Social-Nav/lightsfm.git}"
+LISN_ARENA_REMOTE="${LISN_ARENA_REMOTE:-https://github.com/Arena-Rosnav/arena-rosnav.git}"
+LISN_ARENA_COMMIT="${LISN_ARENA_COMMIT:-6ad00193b17cccf160753b97da950b49ca0371c7}"
+LISN_SIM_SETUP_REMOTE="${LISN_SIM_SETUP_REMOTE:-https://github.com/Social-Nav/simulation-setup.git}"
+LISN_ARENA_EVAL_REMOTE="${LISN_ARENA_EVAL_REMOTE:-https://github.com/Social-Nav/arena_evaluation.git}"
 
 if [[ -z "${LISN_REMOTE}" ]]; then
   err "LISN_REMOTE is not set. Please set a git URL for the tvss_nav package."
   exit 1
 fi
 
-# Basic environment checks
-if ! command -v git >/dev/null 2>&1; then
-  err "git not found. Please install git first."
-  exit 1
-fi
-
-if ! command -v rosversion >/dev/null 2>&1; then
-  err "ROS environment not detected. Please 'source /opt/ros/noetic/setup.bash' and run again."
-  exit 1
-fi
-
-if ! command -v rosdep >/dev/null 2>&1; then
-  warn "rosdep not found. Will skip 'rosdep install'. Please install dependencies manually if needed."
-fi
-
-if ! command -v make >/dev/null 2>&1; then
-  err "make not found. Cannot build lightsfm."
-  exit 1
-fi
-
-if ! command -v catkin >/dev/null 2>&1 && ! command -v catkin_make >/dev/null 2>&1; then
-  err "Neither 'catkin' nor 'catkin_make' found. Please install catkin tools."
-  exit 1
-fi
-
 # Prepare workspace directory
 log "Using workspace directory: ${WS_DIR}"
-mkdir -p "${WS_DIR}"
-
-if [[ -n "$(ls -A "${WS_DIR}" 2>/dev/null || true)" ]] && [[ "${LISN_FORCE:-0}" != "1" ]]; then
-  err "Workspace directory ${WS_DIR} is not empty. Set LISN_FORCE=1 to reuse this directory."
+if [[ -d "${WS_DIR}" && -n "$(ls -A "${WS_DIR}" 2>/dev/null)" && ${LISN_FORCE} -ne 1 ]]; then
+  err "Workspace directory ${WS_DIR} is not empty. Set LISN_FORCE=1 to reuse it."
   exit 1
 fi
-
+mkdir -p "${WS_DIR}/src"
 cd "${WS_DIR}"
+
+# Mark existing repos as safe for git (avoid 'dubious ownership' when workspace is mounted)
+for d in src/*; do
+  if [[ -d "${d}/.git" ]]; then
+    git config --global --add safe.directory "${WS_DIR}/${d}" || true
+  fi
+done
+
+git config --global --add safe.directory '*'
 
 # Helper: clone or update git repo
 clone_or_update() {
   local target="$1"
   local url="$2"
 
+  if [[ ${LISN_SKIP_FETCH} -eq 1 ]]; then
+    if [[ -d "${target}/.git" ]]; then
+      log "Reusing existing repo: ${target} (LISN_SKIP_FETCH=1)"
+      return 0
+    fi
+    warn "Skipping fetch for ${target} because LISN_SKIP_FETCH=1 and no repo exists"
+    return 0
+  fi
+
   mkdir -p "$(dirname "${target}")"
 
   if [[ -d "${target}/.git" ]]; then
     log "Updating existing repo: ${target}"
-    git -C "${target}" fetch --all --prune
-    git -C "${target}" pull --ff-only
+    git -C "${target}" fetch --all --prune >/dev/null 2>&1 || warn "git fetch failed for ${target}"
+    git -C "${target}" pull --ff-only 2>/dev/null || warn "git pull failed for ${target}"
   elif [[ -d "${target}" ]]; then
     warn "Directory ${target} exists but is not a git repo. Skipping clone."
   else
     log "Cloning ${url} -> ${target}"
-    git clone "${url}" "${target}"
+    git clone "${url}" "${target}" || warn "git clone failed for ${url}"
   fi
 }
 
-log "Creating catkin workspace structure (src + dependencies)..."
-mkdir -p src
-mkdir -p dependencies/sfm
+# log "Creating catkin workspace structure (src + dependencies)..."
+mkdir -p src dependencies/sfm
 
-# Clone tvss_nav into src
+# Clone core catkin packages into src
 clone_or_update "src/tvss_nav" "${LISN_REMOTE}"
-
-# Clone dependent catkin packages into src
 clone_or_update "src/tvsn_msgs" "${LISN_MSGS_REMOTE}"
 clone_or_update "src/dynamic_obstacle_detector" "${LISN_DOD_REMOTE}"
 clone_or_update "src/sfm_local_controller" "${LISN_SFM_REMOTE}"
@@ -105,49 +107,115 @@ clone_or_update "src/sfm_local_controller" "${LISN_SFM_REMOTE}"
 # Clone lightsfm into a non-catkin dependencies folder
 clone_or_update "dependencies/sfm/lightsfm" "${LISN_LIGHTSFM_REMOTE}"
 
-# Build and install lightsfm
-log "Building and installing lightsfm..."
-pushd dependencies/sfm/lightsfm >/dev/null
-MAKE_JOBS="$(command -v nproc >/dev/null 2>&1 && nproc || echo 4)"
-make -j"${MAKE_JOBS}"
-if command -v sudo >/dev/null 2>&1; then
-  sudo make install
+if [[ ${LISN_SKIP_LIGHTSFM_BUILD} -eq 1 ]]; then
+  log "Skipping lightsfm build (LISN_SKIP_LIGHTSFM_BUILD=1)"
 else
-  warn "sudo not found. Will try plain 'make install' (may require write permission to system dirs)."
-  make install
+  log "Building and installing lightsfm..."
+  pushd dependencies/sfm/lightsfm >/dev/null
+  MAKE_JOBS="${LISN_PARALLEL_JOBS}"
+  make -j"${MAKE_JOBS}"
+  if [[ $(id -u) -eq 0 ]]; then
+    make install
+  else
+    if command -v sudo >/dev/null 2>&1; then
+      sudo make install
+    else
+      warn "sudo not found and not running as root. 'make install' may fail due to write permissions."
+      make install
+    fi
+  fi
+  popd >/dev/null
 fi
-popd >/dev/null
+
+# Arena-Rosnav simulation environment (required for simulation) with Social-Nav replacements
+if [[ ${LISN_SKIP_ARENA} -ne 1 ]]; then
+  log "Cloning Arena-Rosnav (simulation stack)..."
+  clone_or_update "src/arena-rosnav" "${LISN_ARENA_REMOTE}"
+  if [[ -n "${LISN_ARENA_COMMIT}" && -d "src/arena-rosnav/.git" ]]; then
+    git -C "src/arena-rosnav" checkout "${LISN_ARENA_COMMIT}" || warn "Could not checkout Arena-Rosnav commit ${LISN_ARENA_COMMIT}"
+  fi
+
+  if command -v vcs >/dev/null 2>&1 && [[ -f "src/arena-rosnav/.repos" ]]; then
+    until vcs import src < src/arena-rosnav/.repos; do
+      warn "vcs import failed, retrying in 3s..."
+      sleep 3
+    done
+  else
+    warn "vcs (vcstool) not found or .repos missing; skipping vcs import for Arena-Rosnav subrepos."
+  fi
+
+  # Replace simulation-setup with Social-Nav version
+  if [[ -d "src/arena-rosnav/simulation-setup" ]]; then
+    rm -rf "src/arena-rosnav/simulation-setup"
+  fi
+  clone_or_update "src/arena-rosnav/simulation-setup" "${LISN_SIM_SETUP_REMOTE}"
+
+  # Replace arena evaluation package with Social-Nav version
+  mkdir -p "src/arena-rosnav/arena/evaluation"
+  if [[ -d "src/arena-rosnav/arena/evaluation/arena_evaluation" ]]; then
+    rm -rf "src/arena-rosnav/arena/evaluation/arena_evaluation"
+  fi
+  clone_or_update "src/arena-rosnav/arena/evaluation/arena_evaluation" "${LISN_ARENA_EVAL_REMOTE}"
+
+  # Remove duplicate upstream packages to avoid name collisions
+  for dup in \
+    "src/arena/simulation-setup" \
+    "src/arena_simulation_setup" \
+    "src/arena/evaluation/arena_evaluation"; do
+    if [[ -d "${dup}" ]]; then
+      warn "Removing duplicate package at ${dup}"
+      rm -rf "${dup}"
+    fi
+  done
+fi
 
 # Install ROS dependencies
-if command -v rosdep >/dev/null 2>&1; then
+# Note: noetic is EOL but rosdep still supports it
+rosdep init
+rosdep update --rosdistro $ROS_DISTRO
+
+if [[ ${LISN_SKIP_ROSDEP} -eq 1 ]]; then
+  log "Skipping rosdep install (LISN_SKIP_ROSDEP=1)"
+else
   log "Running rosdep to install ROS dependencies..."
-  if ! rosdep install --from-paths src --ignore-src -r -y; then
-    warn "rosdep failed to install some dependencies. Please check errors and install them manually."
-  fi
+  rosdep install --rosdistro $ROS_DISTRO --from-paths src --ignore-src -r -y || warn "rosdep failed; install missing deps manually."
 fi
+
 
 # Build catkin workspace
-log "Building catkin workspace..."
+if [[ ${LISN_SKIP_BUILD} -eq 1 ]]; then
+  log "Skipping catkin build (LISN_SKIP_BUILD=1)"
+else
+  log "Building catkin workspace..."
 
-if command -v catkin >/dev/null 2>&1; then
-  # catkin tools
-  log "Found 'catkin' (catkin tools). Using 'catkin build'."
-  catkin config --source-space src || true
-  catkin build
-elif command -v catkin_make >/dev/null 2>&1; then
-  # catkin_make
-  log "Found 'catkin_make'. Using 'catkin_make'."
-  if [[ ! -f src/CMakeLists.txt ]]; then
-    log "Initializing src as a catkin workspace..."
-    (cd src && catkin_init_workspace)
+  if command -v catkin >/dev/null 2>&1; then
+    log "Found 'catkin' (catkin tools). Using 'catkin build'."
+    catkin config --source-space src || true
+    catkin build --no-status --summarize
+  elif command -v catkin_make >/dev/null 2>&1; then
+    log "Found 'catkin_make'. Using 'catkin_make'."
+    if [[ ! -f src/CMakeLists.txt ]]; then
+      log "Initializing src as a catkin workspace..."
+      (cd src && catkin_init_workspace)
+    fi
+    catkin_make
+  else
+    err "Neither catkin nor catkin_make found; cannot build workspace."
+    exit 1
   fi
-  catkin_make
-fi
 
-log "Build finished."
-echo
-echo "Next steps:"
-echo "  source \"${WS_DIR}/devel/setup.bash\""
-echo "  roslaunch tvss_nav tvss_nav.launch"
-echo
-echo "To rebuild/reuse the same workspace directory, set LISN_FORCE=1 and run this script again."
+  if [[ -f "${WS_DIR}/devel/setup.bash" ]]; then
+    # Minimal runtime sanity check to catch missing overlays
+    source "${WS_DIR}/devel/setup.bash"
+    rospack profile >/dev/null 2>&1 || warn "rospack profile failed; check ROS package paths"
+    rospack find tvss_nav >/dev/null 2>&1 || warn "tvss_nav package not discoverable after build"
+  fi
+
+  log "Build finished."
+  echo
+  echo "Next steps:"
+  echo "  source \"${WS_DIR}/devel/setup.bash\""
+  echo "  roslaunch tvss_nav tvss_nav.launch"
+  echo
+  echo "For Arena-Rosnav simulation: follow README section 1.1 to install Arena-Rosnav, then replace its simulation-setup and arena_evaluation with the Social-Nav forks as described."
+fi

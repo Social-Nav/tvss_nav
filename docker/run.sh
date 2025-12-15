@@ -6,6 +6,7 @@ set -euo pipefail
 
 IMAGE=${IMAGE:-lisn:latest}
 CMD="bash"
+DETACH=0
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -17,6 +18,14 @@ while [[ $# -gt 0 ]]; do
     --cmd)
       CMD="$2"
       shift 2
+      ;;
+    --detach)
+      DETACH=1
+      shift 1
+      ;;
+    --no-detach)
+      DETACH=0
+      shift 1
       ;;
     *)
       # Unknown option, assume it's the command
@@ -52,9 +61,14 @@ else
   echo "No NVIDIA GPU drivers detected, running without GPU support"
 fi
 
-docker run ${GPU_ARGS} -it --rm --net host --privileged \
+RUN_FLAGS="-it --rm"
+if [[ ${DETACH} -eq 1 ]]; then
+  RUN_FLAGS="--rm -d"
+fi
+
+docker run ${GPU_ARGS} ${RUN_FLAGS} --net host --privileged \
   -v "${LISN_WS_DIR}:${WORKDIR}" \
-  -e DISPLAY="$DISPLAY" \
-  -v /tmp/.X11-unix:/tmp/.X11-unix \
+  ${DISPLAY:+-e DISPLAY="$DISPLAY"} \
+  ${DISPLAY:+-v /tmp/.X11-unix:/tmp/.X11-unix} \
   -p 8765:8765 \
   ${IMAGE} ${CMD}

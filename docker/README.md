@@ -1,21 +1,19 @@
 ## Quick Start
 
-Build the container (GPU-enabled by default; from the `tvss_nav` package root):
+Build the container (GPU-enabled by default; from the `tvss_nav` package root). By default the image bootstraps the workspace via `install_lisn_ws.sh`. You can disable cloning/building during image build with `--build-arg RUN_BOOTSTRAP=0` or reuse existing checkouts with `--build-arg LISN_SKIP_FETCH=1`:
 
 ```bash
 docker build --progress=plain -t lisn:latest -f Dockerfile.ros-torch .
+# Skip bootstrap if you want a faster image build and plan to run install_lisn_ws.sh later:
+# docker build --progress=plain -t lisn:latest -f Dockerfile.ros-torch --build-arg RUN_BOOTSTRAP=0 .
 ```
 
-Run the container (automatically detects GPU availability):
+Run the container (automatically detects GPU availability). The helper script now attaches to the container by default; pass `--detach` to background it:
 
 ```bash
 ./docker/run.sh
-```
-
-Or run with a specific command:
-
-```bash
-./docker/run.sh --cmd 'ls -la /root/lisn_ws'
+# or: ./docker/run.sh --detach
+# or run with custom command: ./docker/run.sh --cmd 'ls -la /root/lisn_ws'
 ```
 
 Start a ROS master and visualize using Foxglove (example):
