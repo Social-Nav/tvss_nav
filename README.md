@@ -1,6 +1,6 @@
 # Task-Oriented Visual-Semantic Social Navigation (`tvss_nav`)
 
-This repository contains the `tvss_nav` ROS package and an installation script that provisions a ready-to-use Catkin workspace under `~/tvsn_ws`. It is intended for external users and customers who want to deploy or evaluate the navigation stack with minimal manual setup.
+This repository contains the `tvss_nav` ROS package and an installation script that provisions a ready-to-use Catkin workspace under `~/lisn_ws`. It is intended for external users and customers who want to deploy or evaluate the navigation stack with minimal manual setup.
 
 The software targets **ROS Noetic on Ubuntu 20.04**.
 
@@ -33,83 +33,59 @@ The software targets **ROS Noetic on Ubuntu 20.04**.
   - Python 3.11 (recommended via Conda)
   - CUDA-compatible PyTorch build (version depends on your GPU / driver)
 
-### 1.1 Arena-Rosnav Environment (Required for Simulation)
+### 1.1 Arena-Rosnav Environment (Simulation)
 
-This project relies on the Arena-Rosnav simulation environment (Arena + Pedsim). Install it before running the simulation launch files:
+The installer now provisions the Arena-Rosnav simulation stack automatically (unless you set `LISN_SKIP_ARENA=1`). It clones Arena-Rosnav, pins commit `6ad00193b17cccf160753b97da950b49ca0371c7`, imports its `.repos` (if `vcstool` is available), and replaces the default simulation/evaluation modules with the Social-Nav versions:
 
-```bash
-# In your Catkin workspace, e.g. ~/tvsn_ws/src
-git clone git@github.com:Arena-Rosnav/arena-rosnav.git
-cd arena-rosnav
-git checkout 6ad00193b17cccf160753b97da950b49ca0371c7
+- `simulation-setup` → `https://github.com/Social-Nav/simulation-setup.git`
+- `arena_evaluation` → `https://github.com/Social-Nav/arena_evaluation.git`
 
-# Clone the Arena-Rosnav docs / meta repository (arena3 branch)
-cd ..
-git clone --branch arena3 https://github.com/Arena-Rosnav/.github.git
-```
-
-Then follow the installation and setup instructions for Arena-Rosnav described in the `.github` repository (branch `arena3`) to finish configuring the simulation environment.
-
-After you have a working original Arena-Rosnav setup, you can replace the default simulation configuration with the one used in this `tvss_nav` project:
-
-```bash
-cd ~/arena_ws/src/arena
-rm -rf simulation-setup
-git clone git@github.com:Social-Nav/simulation-setup.git
-```
-
-The `Social-Nav/simulation-setup` repository contains the simulation configuration used during the development of `tvss_nav`.
-
-If you are using the Arena evaluation package, you can similarly replace the default evaluation directory with the Social-Nav fork:
-
-```bash
-cd ~/arena_ws/src/arena/evaluation
-rm -rf arena_evaluation
-git clone git@github.com:Social-Nav/arena_evaluation.git
-```
+If you prefer to manage Arena-Rosnav yourself, run with `LISN_SKIP_ARENA=1` and follow the Arena-Rosnav docs manually.
 
 ## 2. One-Click Workspace Installation
 
-This repository includes a convenience script that bootstraps a complete workspace at `~/tvsn_ws`, including:
+This repository includes a convenience script that bootstraps a complete workspace at `~/lisn_ws`, including:
 - `tvss_nav` (navigation package)
 - `tvsn_msgs` (message definitions)
 - `dynamic_obstacle_detector` (forked)
 - `sfm_local_controller` (forked)
 - `lightsfm` (non-catkin dependency)
+- Arena-Rosnav stack (with Social-Nav simulation/evaluation replacements; can be skipped via `LISN_SKIP_ARENA=1`)
 
 ```bash
 git clone <this-repo-url> tvss_nav
 cd tvss_nav
-bash install_tvsn_ws.sh
+bash install_lisn_ws.sh
 
 # The script will:
-# - Create a Catkin workspace (src + dependencies) under ~/tvsn_ws
+# - Create a Catkin workspace (src + dependencies) under ~/lisn_ws
 # - Clone tvss_nav and the forked tvsn_msgs/dynamic_obstacle_detector/sfm_local_controller/lightsfm
 # - Build and install lightsfm (path: dependencies/sfm/lightsfm)
+# - Clone Arena-Rosnav (pinned commit) and replace simulation-setup and arena_evaluation with Social-Nav forks
 # - Run rosdep to install ROS dependencies
 # - Build the workspace with catkin (catkin build or catkin_make)
 
 # After completion:
-source ~/tvsn_ws/devel/setup.bash
+source ~/lisn_ws/devel/setup.bash
 ```
 
 Configurable parameters (environment variables):
-- `TVSN_WS_DIR` (default `~/tvsn_ws`)
-- `TVSN_REMOTE`
-- `TVSN_MSGS_REMOTE`
-- `TVSN_DOD_REMOTE`
-- `TVSN_SFM_REMOTE`
-- `TVSN_LIGHTSFM_REMOTE`
+- `LISN_WS_DIR` (default `~/lisn_ws`)
+- `LISN_REMOTE`
+- `LISN_MSGS_REMOTE`
+- `LISN_DOD_REMOTE`
+- `LISN_SFM_REMOTE`
+- `LISN_LIGHTSFM_REMOTE`
 
-If the target directory is not empty, set `TVSN_FORCE=1` to reuse it.
+If the target directory is not empty, set `LISN_FORCE=1` to reuse it.
 
 ## 3. Python Environment
 
 The installation script does not create a Python environment. We recommend using Conda:
 
 ```bash
-conda create -n tvsn python=3.11
-conda activate tvsn
+conda create -n lisn python=3.11
+conda activate lisn
 
 # Install a PyTorch build compatible with your CUDA toolchain (example for CUDA 11.8)
 pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 \
@@ -197,7 +173,65 @@ Additional tools (for example samplers and goal projectors) are described in `tm
 - `requirements.txt`  
   Python dependency list (excluding PyTorch and its companion packages, which should be installed according to your CUDA configuration).
 
-## 6. Troubleshooting
+## 6. Docker Containerization
+
+For easy deployment and development, Docker containers are provided with GPU support and volume mounting for live development. The Docker setup automatically includes Arena-Rosnav simulation environment dependencies required for running simulations.
+
+### 6.1 Building the Docker Image
+
+```bash
+cd docker
+docker build -f Dockerfile.ros-torch -t lisn:latest .
+```
+
+The Docker image includes:
+- Arena-Rosnav simulation environment (Arena + Pedsim)
+- All required ROS packages for navigation and simulation
+- Foxglove bridge for real-time data visualization
+- GPU acceleration support
+
+### 6.2 Running Simulations with Docker
+
+Use the provided simulation script for automated setup:
+
+```bash
+cd docker
+./run_simulation.sh
+```
+
+This will:
+- Start the container with GPU support (if available)
+- Mount the workspace for live development
+- Launch the simulation with Gazebo and RViz
+- Start Foxglove bridge for data visualization
+
+### 6.3 Foxglove Visualization
+
+The Docker setup includes Foxglove bridge for real-time ROS data visualization:
+
+1. **Connect from host machine:**
+   - Open Foxglove Studio
+   - Select "Open Connection" → "Foxglove WebSocket"
+   - Enter URL: `ws://localhost:8765`
+   - Click "Open" to explore robot data
+
+2. **Available data includes:**
+   - Robot pose and odometry
+   - Sensor data (LiDAR, camera)
+   - Navigation goals and paths
+   - Simulation state and diagnostics
+
+### 6.4 Development Workflow
+
+The container uses volume mounting, so changes to source code are reflected immediately without rebuilding the image. For development:
+
+```bash
+# Edit files in your workspace
+# Changes are automatically available in the running container
+# Rebuild only when dependencies change
+```
+
+## 7. Troubleshooting
 
 - **`catkin` / `catkin_make` not found**  
   Ensure that ROS Noetic is sourced:
