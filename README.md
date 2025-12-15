@@ -1,8 +1,15 @@
-# Task-Oriented Visual-Semantic Social Navigation (`tvss_nav`)
+# LISN: Language-Instructed Social Navigation with VLM-based Controller Modulating
 
-This repository contains the `tvss_nav` ROS package and an installation script that provisions a ready-to-use Catkin workspace under `~/lisn_ws`. It is intended for external users and customers who want to deploy or evaluate the navigation stack with minimal manual setup.
+This repository hosts the code for the LISN project (project page: https://social-nav.github.io/LISN-project/) and contains the `tvss_nav` ROS package plus an installation script that provisions a ready-to-use Catkin workspace under `~/lisn_ws`. It is intended for external users and customers who want to deploy or evaluate the navigation stack with minimal manual setup.
 
-The software targets **ROS Noetic on Ubuntu 20.04**.
+The software targets **ROS Noetic on Ubuntu 20.04** (see [Section 1 — System Requirements](#1-system-requirements)). The project supports both **local installation** (see [Section 2 — One-Click Workspace Installation](#2-one-click-workspace-installation)) and **Docker-based installation** (see [Section 6 — Docker Containerization](#6-docker-containerization)); choose whichever fits your workflow.
+
+### TODO List
+
+- [x] Unify local and Docker installation via `install_lisn_ws.sh`.
+- [x] Publish project page and citation info.
+- [ ] Migrating this project to Arena 5.0 with more diverse tasks and environments, also for better rendering powered by Isaac Sim.
+
 
 ## 1. System Requirements
 
@@ -13,7 +20,7 @@ The software targets **ROS Noetic on Ubuntu 20.04**.
     - `sudo rosdep init` (once per machine)
     - `rosdep update`
     - Able to run `roscore`
-- **System packages** (install missing components as required):
+- **System packages** (You **DO NOT** need these dependencies if you want a docker installation):
   ```bash
   sudo apt install \
     ros-noetic-nav-core \
@@ -24,23 +31,13 @@ The software targets **ROS Noetic on Ubuntu 20.04**.
     ros-noetic-cv-bridge \
     ros-noetic-image-transport \
     ros-noetic-message-filters \
+    ros-noetic-realsense2-camera \
     tmux tmuxinator gnome-terminal
   ```
-- **Optional – RealSense support**
-  - Intel `librealsense2` (from the official distribution)
-  - ROS driver: `ros-noetic-realsense2-camera`
 - **Python / ML stack**
   - Python 3.11 (recommended via Conda)
   - CUDA-compatible PyTorch build (version depends on your GPU / driver)
 
-### 1.1 Arena-Rosnav Environment (Simulation)
-
-The installer now provisions the Arena-Rosnav simulation stack automatically (unless you set `LISN_SKIP_ARENA=1`). It clones Arena-Rosnav, pins commit `6ad00193b17cccf160753b97da950b49ca0371c7`, imports its `.repos` (if `vcstool` is available), and replaces the default simulation/evaluation modules with the Social-Nav versions:
-
-- `simulation-setup` → `https://github.com/Social-Nav/simulation-setup.git`
-- `arena_evaluation` → `https://github.com/Social-Nav/arena_evaluation.git`
-
-If you prefer to manage Arena-Rosnav yourself, run with `LISN_SKIP_ARENA=1` and follow the Arena-Rosnav docs manually.
 
 ## 2. One-Click Workspace Installation
 
@@ -53,6 +50,8 @@ This repository includes a convenience script that bootstraps a complete workspa
 - Arena-Rosnav stack (with Social-Nav simulation/evaluation replacements; can be skipped via `LISN_SKIP_ARENA=1`)
 
 ```bash
+mkdir -p ~/lisn_ws/src 
+cd ~/lisn_ws/src
 git clone <this-repo-url> tvss_nav
 cd tvss_nav
 bash install_lisn_ws.sh
@@ -69,6 +68,10 @@ bash install_lisn_ws.sh
 source ~/lisn_ws/devel/setup.bash
 ```
 
+Notes:
+- The same `install_lisn_ws.sh` script is used for both local setups and the Docker image build. Pass `LISN_SKIP_FETCH=1` when reusing already-cloned sources (for example when mounting a host workspace into the container), and `LISN_SKIP_ROSDEP=1` if you prefer to handle apt dependencies yourself.
+- To speed up rebuilds, you can skip lightsfm or Arena-Rosnav with `LISN_SKIP_LIGHTSFM_BUILD=1` or `LISN_SKIP_ARENA=1` respectively.
+
 Configurable parameters (environment variables):
 - `LISN_WS_DIR` (default `~/lisn_ws`)
 - `LISN_REMOTE`
@@ -78,6 +81,16 @@ Configurable parameters (environment variables):
 - `LISN_LIGHTSFM_REMOTE`
 
 If the target directory is not empty, set `LISN_FORCE=1` to reuse it.
+
+### 2.1 Arena-Rosnav Environment (Deprecated)
+
+The installer now provisions the Arena-Rosnav simulation stack automatically (unless you set `LISN_SKIP_ARENA=1`). It clones Arena-Rosnav, pins commit `6ad00193b17cccf160753b97da950b49ca0371c7`, imports its `.repos` (if `vcstool` is available), and replaces the default simulation/evaluation modules with the Social-Nav versions:
+
+- `simulation-setup` → `https://github.com/Social-Nav/simulation-setup.git`
+- `arena_evaluation` → `https://github.com/Social-Nav/arena_evaluation.git`
+
+If you prefer to manage Arena-Rosnav yourself, run with `LISN_SKIP_ARENA=1` and follow the [Arena-Rosnav docs](https://arena-rosnav.readthedocs.io/en/latest/) manually. Note that in this project we only use Gazebo simulation introduced in Arena v3.0.
+
 
 ## 3. Python Environment
 
@@ -106,8 +119,8 @@ export GEMINI_API_KEY=...
 ## 4. Running the System
 
 The following commands assume:
-- `source ~/tvsn_ws/devel/setup.bash` has been executed.
-- If required, `conda activate tvsn` is active in the current shell.
+- `source ~/lisn_ws/devel/setup.bash` has been executed (inside Docker the workspace lives at `/root/lisn_ws`).
+- If required, `conda activate lisn` is active in the current shell.
 
 ### 4.1 Simulation Navigation (Arena + Pedsim)
 
@@ -156,7 +169,7 @@ To enable the visual–semantic navigation components (requires the Python envir
 ```bash
 roslaunch tvss_nav tvss_nav.launch rviz_file:=visual_semantic
 
-# In a separate terminal (with `conda activate tvsn`):
+# In a separate terminal (with `conda activate lisn`):
 cd tvss_nav/scripts/tvss_nav/tools/grounded_sam2
 python gsam2_ros.py
 
@@ -168,7 +181,7 @@ python -m vlm.vlm
 Additional tools (for example samplers and goal projectors) are described in `tmux/vlm_tools/.tmuxinator.yml`.
 
 ## 5. Reference Files and Utilities
-- `install_tvsn_ws.sh`  
+`install_lisn_ws.sh`  
   One-click installation script for the Catkin workspace.
 - `requirements.txt`  
   Python dependency list (excluding PyTorch and its companion packages, which should be installed according to your CUDA configuration).
@@ -204,6 +217,14 @@ This will:
 - Mount the workspace for live development
 - Launch the simulation with Gazebo and RViz
 - Start Foxglove bridge for data visualization
+
+Inside the container, build the workspace by running `install_lisn_ws.sh`:
+
+```bash
+source /opt/ros/noetic/setup.bash
+cd /root/lisn_ws/src/tvss_nav
+bash install_lisn_ws.sh
+```
 
 ### 6.3 Foxglove Visualization
 
@@ -249,4 +270,16 @@ The container uses volume mounting, so changes to source code are reflected imme
   ```
   and install any reported missing system packages.
 
-## 7. Licensing and Support
+## 8. **Cite LISN**
+
+```
+@misc{chen2025lisnlanguageinstructedsocialnavigation,
+  title={LISN: Language-Instructed Social Navigation with VLM-based Controller Modulating}, 
+  author={Junting Chen and Yunchuan Li and Panfeng Jiang and Jiacheng Du and Zixuan Chen and Chenrui Tie and Jiajun Deng and Lin Shao},
+  year={2025},
+  eprint={2512.09920},
+  archivePrefix={arXiv},
+  primaryClass={cs.RO},
+  url={https://arxiv.org/abs/2512.09920}, 
+}
+```

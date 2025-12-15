@@ -33,6 +33,9 @@ LISN_PARALLEL_JOBS=${LISN_PARALLEL_JOBS:-$CPU_COUNT}
 # Workspace root
 WS_DIR="${LISN_WS_DIR:-$HOME/lisn_ws}"
 
+# ROS distro (default:noetic)
+ROS_DISTRO="${ROS_DISTRO:-noetic}"
+
 # Default remotes (override via env if needed)
 LISN_REMOTE="${LISN_REMOTE:-https://github.com/Social-Nav/tvss_nav.git}"
 LISN_DOD_REMOTE="${LISN_DOD_REMOTE:-https://github.com/Social-Nav/dynamic_obstacle_detector.git}"
@@ -64,8 +67,6 @@ for d in src/*; do
     git config --global --add safe.directory "${WS_DIR}/${d}" || true
   fi
 done
-
-git config --global --add safe.directory '*'
 
 # Helper: clone or update git repo
 clone_or_update() {
@@ -170,15 +171,26 @@ if [[ ${LISN_SKIP_ARENA} -ne 1 ]]; then
 fi
 
 # Install ROS dependencies
-# Note: noetic is EOL but rosdep still supports it
-rosdep init
-rosdep update --rosdistro $ROS_DISTRO
-
-if [[ ${LISN_SKIP_ROSDEP} -eq 1 ]]; then
-  log "Skipping rosdep install (LISN_SKIP_ROSDEP=1)"
+if ! command -v rosdep >/dev/null 2>&1; then
+  warn "rosdep not found. Skipping dependency installation. Install rosdep and re-run if needed."
 else
-  log "Running rosdep to install ROS dependencies..."
-  rosdep install --rosdistro $ROS_DISTRO --from-paths src --ignore-src -r -y || warn "rosdep failed; install missing deps manually."
+  # Initialize rosdep (requires root for first-time init)
+  if [[ ${LISN_SKIP_ROSDEP} -eq 1 ]]; then
+    log "Skipping rosdep install (LISN_SKIP_ROSDEP=1)"
+  else
+    log "Ensuring rosdep data is available..."
+    if [[ $(id -u) -eq 0 ]]; then
+      rosdep init || true
+      rosdep update --rosdistro "${ROS_DISTRO}" || warn "rosdep update failed; continue and try installing resolvable deps"
+    else
+      if ! rosdep update --rosdistro "${ROS_DISTRO}" >/dev/null 2>&1; then
+        warn "rosdep not initialized for this user. Run: 'sudo rosdep init && rosdep update' as root, or set LISN_SKIP_ROSDEP=1 to skip."
+      fi
+    fi
+
+    log "Running rosdep to install ROS dependencies..."
+    rosdep install --rosdistro "${ROS_DISTRO}" --from-paths src --ignore-src -r -y || warn "rosdep failed; install missing deps manually."
+  fi
 fi
 
 

@@ -8,6 +8,8 @@ docker build --progress=plain -t lisn:latest -f Dockerfile.ros-torch .
 # docker build --progress=plain -t lisn:latest -f Dockerfile.ros-torch --build-arg RUN_BOOTSTRAP=0 .
 ```
 
+If you mount an existing host workspace into the container, keep the bootstrap fast and avoid recloning by combining `RUN_BOOTSTRAP=0` during build and running `install_lisn_ws.sh` inside the container with `LISN_SKIP_FETCH=1` (and optionally `LISN_SKIP_ROSDEP=1` if dependencies are already installed).
+
 Run the container (automatically detects GPU availability). The helper script now attaches to the container by default; pass `--detach` to background it:
 
 ```bash
