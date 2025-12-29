@@ -143,32 +143,26 @@ For online tuning of parameters, you may additionally run:
 rosrun rqt_reconfigure rqt_reconfigure
 ```
 
-### 4.2 Basic Navigation (Robot or Bag Playback)
+### 4.2 Initialize TVSS Core Services
 
-For navigation without a simulator GUI (for example on a physical robot or with rosbag playback):
+After setting up the simulation environment, launch the core backend services for the TVSS system. Set `show_rviz:=false` to prevent opening a duplicate visualization window, as RViz is already running from the simulation step (Section 4.1).
 
 ```bash
 roslaunch tvss_nav tvss_nav.launch show_rviz:=false
 ```
+What this command does:
 
-If using an Intel RealSense camera, start the RGB‑D node separately:
+ - Loads Configurations: Reads static parameters from common.yaml into the parameter server.
 
-```bash
-roslaunch realsense2_camera rs_rgbd.launch \
-  enable_pointcloud:=true \
-  filters:=spatial,temporal,hole_filling \
-  spatial_filter.enable:=true \
-  temporal_filter.enable:=true \
-  hole_filling.enable:=true
-```
+ - Starts Communication Bridge: Launches the rosbridge_server (WebSocket), which is essential for exchanging data with the Python VLM pipeline in the next step.
+
+ - Initializes Perception Utilities: Starts the pointcloud_seg (segmentation) and goal_projector nodes to process sensor data and handle goal coordinates.
 
 ### 4.3 Visual–Semantic Pipeline
 
 To enable the visual–semantic navigation components (requires the Python environment and API keys):
 
 ```bash
-roslaunch tvss_nav tvss_nav.launch rviz_file:=visual_semantic
-
 # In a separate terminal (with `conda activate lisn`):
 cd tvss_nav/scripts/tvss_nav/tools/grounded_sam2
 python gsam2_ros.py
@@ -177,8 +171,6 @@ python gsam2_ros.py
 cd tvss_nav/scripts/tvss_nav
 python -m vlm.vlm
 ```
-
-Additional tools (for example samplers and goal projectors) are described in `tmux/vlm_tools/.tmuxinator.yml`.
 
 ## 5. Reference Files and Utilities
 `install_lisn_ws.sh`  
