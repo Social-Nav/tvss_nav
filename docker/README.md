@@ -31,6 +31,7 @@ Run a publisher and the Foxglove bridge in separate containers (mapping Foxglove
 docker run --rm -it --network rosnet --env 'ROS_MASTER_URI=http://roscore:11311/' -v ${PWD}/../../:/root/lisn_ws lisn:latest rostopic pub /chatter std_msgs/String 'data: hello' -r 1
 
 docker run --rm -it --network rosnet --env 'ROS_MASTER_URI=http://roscore:11311/' -p 8765:8765 -v ${PWD}/../../:/root/lisn_ws lisn:latest roslaunch foxglove_bridge foxglove_bridge.launch
+```
 
 GPU-enabled `roscore` and Foxglove bridge using `lisn:latest`:
 

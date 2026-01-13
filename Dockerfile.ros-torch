@@ -31,6 +31,7 @@ RUN apt-get update --ignore-missing || apt-get update --allow-unauthenticated ||
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential x11-apps mesa-utils \
+        liblua5.1-dev liblcm-dev \
         python3-vcstool python3-rosinstall-generator python3-rosinstall python3-catkin-tools\
         ros-${ROS_DISTRO}-navigation \
         ros-${ROS_DISTRO}-nav-core \
@@ -58,6 +59,7 @@ RUN apt-get update \
         ros-${ROS_DISTRO}-visualization-msgs \
         ros-${ROS_DISTRO}-nlopt \
         ros-${ROS_DISTRO}-control-box-rst \
+        ros-${ROS_DISTRO}-people-msgs \
     && rm -rf /var/lib/apt/lists/*
 
 # Initialize rosdep for dependency resolution inside the image
