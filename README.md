@@ -172,6 +172,17 @@ cd tvss_nav/scripts/tvss_nav
 python -m vlm.vlm
 ```
 
+### 4.4 RoboPoint Local Pixel-Subgoal Inference
+
+We include a local RoboPoint ROS node that listens to `/camera/color/image_raw/compressed` and `/user_query`, then publishes pixel-level subgoals to `/pixel_subgoal`. In our default launch script, it is started as follows:
+
+```bash
+# In a separate terminal (with `conda activate lisn`):
+cd tvss_nav/scripts/tvss_nav/sampler/robopoint_sampler 
+python3 local_inference_ros.py
+```
+
+
 ## 5. Reference Files and Utilities
 `install_lisn_ws.sh`  
   One-click installation script for the Catkin workspace.
