@@ -12,6 +12,7 @@
 #   LISN_SFM_REMOTE       : sfm_local_controller fork URL
 #   LISN_MSGS_REMOTE      : tvsn_msgs git URL
 #   LISN_LIGHTSFM_REMOTE  : lightsfm fork URL
+#   LISN_ARENA_EVAL_BRANCH : arena_evaluation branch name, default "master"
 
 set -euo pipefail
 
@@ -44,8 +45,9 @@ LISN_MSGS_REMOTE="${LISN_MSGS_REMOTE:-https://github.com/Social-Nav/tvsn_msgs.gi
 LISN_LIGHTSFM_REMOTE="${LISN_LIGHTSFM_REMOTE:-https://github.com/Social-Nav/lightsfm.git}"
 LISN_ARENA_REMOTE="${LISN_ARENA_REMOTE:-https://github.com/Arena-Rosnav/arena-rosnav.git}"
 LISN_ARENA_COMMIT="${LISN_ARENA_COMMIT:-6ad00193b17cccf160753b97da950b49ca0371c7}"
-LISN_SIM_SETUP_REMOTE="${LISN_SIM_SETUP_REMOTE:-https://github.com/Social-Nav/simulation-setup.git}"
-LISN_ARENA_EVAL_REMOTE="${LISN_ARENA_EVAL_REMOTE:-https://github.com/Social-Nav/arena_evaluation.git}"
+LISN_SIM_SETUP_REMOTE="${LISN_SIM_SETUP_REMOTE:-https://github.com/Social-Nav/arena-simulation-setup.git}"
+LISN_ARENA_EVAL_REMOTE="${LISN_ARENA_EVAL_REMOTE:-https://github.com/Social-Nav/arena-evaluation.git}"
+LISN_ARENA_EVAL_BRANCH="${LISN_ARENA_EVAL_BRANCH:-master}"
 
 if [[ -z "${LISN_REMOTE}" ]]; then
   err "LISN_REMOTE is not set. Please set a git URL for the tvss_nav package."
@@ -97,7 +99,7 @@ clone_or_update() {
 }
 
 # log "Creating catkin workspace structure (src + dependencies)..."
-mkdir -p src dependencies/sfm
+mkdir -p src src/arena dependencies/sfm
 
 # Clone core catkin packages into src
 clone_or_update "src/tvss_nav" "${LISN_REMOTE}"
@@ -131,13 +133,13 @@ fi
 # Arena-Rosnav simulation environment (required for simulation) with Social-Nav replacements
 if [[ ${LISN_SKIP_ARENA} -ne 1 ]]; then
   log "Cloning Arena-Rosnav (simulation stack)..."
-  clone_or_update "src/arena-rosnav" "${LISN_ARENA_REMOTE}"
-  if [[ -n "${LISN_ARENA_COMMIT}" && -d "src/arena-rosnav/.git" ]]; then
-    git -C "src/arena-rosnav" checkout "${LISN_ARENA_COMMIT}" || warn "Could not checkout Arena-Rosnav commit ${LISN_ARENA_COMMIT}"
+  clone_or_update "src/arena/arena-rosnav" "${LISN_ARENA_REMOTE}"
+  if [[ -n "${LISN_ARENA_COMMIT}" && -d "src/arena/arena-rosnav/.git" ]]; then
+    git -C "src/arena/arena-rosnav" checkout "${LISN_ARENA_COMMIT}" || warn "Could not checkout Arena-Rosnav commit ${LISN_ARENA_COMMIT}"
   fi
 
-  if command -v vcs >/dev/null 2>&1 && [[ -f "src/arena-rosnav/.repos" ]]; then
-    until vcs import src < src/arena-rosnav/.repos; do
+  if command -v vcs >/dev/null 2>&1 && [[ -f "src/arena/arena-rosnav/.repos" ]]; then
+    until vcs import src < src/arena/arena-rosnav/.repos; do
       warn "vcs import failed, retrying in 3s..."
       sleep 3
     done
@@ -146,23 +148,45 @@ if [[ ${LISN_SKIP_ARENA} -ne 1 ]]; then
   fi
 
   # Replace simulation-setup with Social-Nav version
+  # Put it under src/arena/ (alongside other arena packages such as utils)
+  if [[ -d "src/arena/arena-rosnav/simulation-setup" ]]; then
+    rm -rf "src/arena/arena-rosnav/simulation-setup"
+  fi
   if [[ -d "src/arena-rosnav/simulation-setup" ]]; then
     rm -rf "src/arena-rosnav/simulation-setup"
   fi
-  clone_or_update "src/arena-rosnav/simulation-setup" "${LISN_SIM_SETUP_REMOTE}"
-
-  # Replace arena evaluation package with Social-Nav version
-  mkdir -p "src/arena-rosnav/arena/evaluation"
-  if [[ -d "src/arena-rosnav/arena/evaluation/arena_evaluation" ]]; then
-    rm -rf "src/arena-rosnav/arena/evaluation/arena_evaluation"
+  if [[ -d "src/arena/simulation-setup" ]]; then
+    rm -rf "src/arena/simulation-setup"
   fi
-  clone_or_update "src/arena-rosnav/arena/evaluation/arena_evaluation" "${LISN_ARENA_EVAL_REMOTE}"
+  clone_or_update "src/arena/simulation-setup" "${LISN_SIM_SETUP_REMOTE}"
+
+  # Replace arena evaluation folder with Social-Nav version
+  # (Social-Nav/arena-evaluation repo now provides the whole 'evaluation' tree)
+  # Put it under src/arena/ (alongside other arena packages such as utils)
+  if [[ -d "src/arena/arena-rosnav/arena/evaluation" ]]; then
+    rm -rf "src/arena/arena-rosnav/arena/evaluation"
+  fi
+  if [[ -d "src/arena-rosnav/arena/evaluation" ]]; then
+    rm -rf "src/arena-rosnav/arena/evaluation"
+  fi
+  if [[ -d "src/arena/evaluation" ]]; then
+    rm -rf "src/arena/evaluation"
+  fi
+  clone_or_update "src/arena/evaluation" "${LISN_ARENA_EVAL_REMOTE}"
+  if [[ -n "${LISN_ARENA_EVAL_BRANCH}" && -d "src/arena/evaluation/.git" ]]; then
+    if [[ ${LISN_SKIP_FETCH} -ne 1 ]]; then
+      git -C "src/arena/evaluation" fetch --all --prune >/dev/null 2>&1 || warn "git fetch failed for arena_evaluation"
+    fi
+    git -C "src/arena/evaluation" checkout "${LISN_ARENA_EVAL_BRANCH}" || warn "Could not checkout arena_evaluation branch ${LISN_ARENA_EVAL_BRANCH}"
+    if [[ ${LISN_SKIP_FETCH} -ne 1 ]]; then
+      git -C "src/arena/evaluation" pull --ff-only 2>/dev/null || warn "git pull failed for arena_evaluation"
+    fi
+  fi
 
   # Remove duplicate upstream packages to avoid name collisions
+  # Keep src/arena/{simulation-setup,evaluation} because we intentionally place Social-Nav replacements there.
   for dup in \
-    "src/arena/simulation-setup" \
-    "src/arena_simulation_setup" \
-    "src/arena/evaluation/arena_evaluation"; do
+    "src/arena_simulation_setup"; do
     if [[ -d "${dup}" ]]; then
       warn "Removing duplicate package at ${dup}"
       rm -rf "${dup}"

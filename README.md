@@ -86,8 +86,8 @@ If the target directory is not empty, set `LISN_FORCE=1` to reuse it.
 
 The installer now provisions the Arena-Rosnav simulation stack automatically (unless you set `LISN_SKIP_ARENA=1`). It clones Arena-Rosnav, pins commit `6ad00193b17cccf160753b97da950b49ca0371c7`, imports its `.repos` (if `vcstool` is available), and replaces the default simulation/evaluation modules with the Social-Nav versions:
 
-- `simulation-setup` → `https://github.com/Social-Nav/simulation-setup.git`
-- `arena_evaluation` → `https://github.com/Social-Nav/arena_evaluation.git`
+- `simulation-setup` → `https://github.com/Social-Nav/arena-simulation-setup.git`
+- `evaluation` → `https://github.com/Social-Nav/arena-evaluation.git`
 
 If you prefer to manage Arena-Rosnav yourself, run with `LISN_SKIP_ARENA=1` and follow the [Arena-Rosnav docs](https://arena-rosnav.readthedocs.io/en/latest/) manually. Note that in this project we only use Gazebo simulation introduced in Arena v3.0.
 
